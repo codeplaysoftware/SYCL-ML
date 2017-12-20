@@ -1,0 +1,159 @@
+Starting run_classifier
+Loading from eig_svd_64_1024_f...
+  Starting train_classifier
+Training (0, 1) ...
+Number support vectors: 173
+
+Training (0, 2) ...
+Number support vectors: 343
+
+Training (0, 3) ...
+Number support vectors: 348
+
+Training (0, 4) ...
+Number support vectors: 298
+
+Training (0, 5) ...
+Number support vectors: 363
+
+Training (0, 6) ...
+Number support vectors: 346
+
+Training (0, 7) ...
+Number support vectors: 261
+
+Training (0, 8) ...
+Number support vectors: 371
+
+Training (0, 9) ...
+Number support vectors: 321
+
+Training (1, 2) ...
+Number support vectors: 297
+
+Training (1, 3) ...
+Number support vectors: 239
+
+Training (1, 4) ...
+Number support vectors: 227
+
+Training (1, 5) ...
+Number support vectors: 223
+
+Training (1, 6) ...
+Number support vectors: 180
+
+Training (1, 7) ...
+Number support vectors: 196
+
+Training (1, 8) ...
+Number support vectors: 280
+
+Training (1, 9) ...
+Number support vectors: 228
+
+Training (2, 3) ...
+Number support vectors: 578
+
+Training (2, 4) ...
+Number support vectors: 420
+
+Training (2, 5) ...
+Number support vectors: 419
+
+Training (2, 6) ...
+Number support vectors: 348
+
+Training (2, 7) ...
+Number support vectors: 456
+
+Training (2, 8) ...
+Number support vectors: 566
+
+Training (2, 9) ...
+Number support vectors: 433
+
+Training (3, 4) ...
+Number support vectors: 340
+
+Training (3, 5) ...
+Number support vectors: 616
+
+Training (3, 6) ...
+Number support vectors: 338
+
+Training (3, 7) ...
+Number support vectors: 389
+
+Training (3, 8) ...
+Number support vectors: 659
+
+Training (3, 9) ...
+Number support vectors: 498
+
+Training (4, 5) ...
+Number support vectors: 358
+
+Training (4, 6) ...
+Number support vectors: 305
+
+Training (4, 7) ...
+Number support vectors: 401
+
+Training (4, 8) ...
+Number support vectors: 436
+
+Training (4, 9) ...
+Number support vectors: 545
+
+Training (5, 6) ...
+Number support vectors: 402
+
+Training (5, 7) ...
+Number support vectors: 334
+
+Training (5, 8) ...
+Number support vectors: 563
+
+Training (5, 9) ...
+Number support vectors: 421
+
+Training (6, 7) ...
+Number support vectors: 249
+
+Training (6, 8) ...
+Number support vectors: 404
+
+Training (6, 9) ...
+Number support vectors: 296
+
+Training (7, 8) ...
+Number support vectors: 422
+
+Training (7, 9) ...
+Number support vectors: 535
+
+Training (8, 9) ...
+Number support vectors: 526
+
+  train_classifier: 294.406s
+  Starting predict_classifier
+  predict_classifier: 0.2649s
+
+Success rate: 98.3%
+Precision: 98.2821%
+Recall: 98.2973%
+F1-score: 0.982897
+
+973   1     0     1     0     1     1     1     1     1
+0     1132  0     1     1     0     0     0     1     0
+4     1     1010  1     2     0     2     7     3     2
+1     0     2     998   0     2     0     1     4     2
+1     0     3     1     967   0     2     0     0     8
+3     0     0     6     1     872   3     0     4     3
+4     2     1     1     1     2     946   0     1     0
+0     4     9     2     2     0     0     1001  3     7
+3     0     5     5     1     2     2     1     952   3
+2     2     0     5     12    4     0     4     1     979
+run_classifier: 288.735s
+

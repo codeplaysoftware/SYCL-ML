@@ -1,0 +1,24 @@
+diff -r ba64f5464c2f unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
+--- a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Mon Dec 04 10:07:47 2017 +0000
++++ b/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Mon Dec 04 10:24:17 2017 +0000
+@@ -60,7 +60,7 @@
+ }// End namespace TensorSycl
+ 
+ typedef cl::sycl::codeplay::buffer_data_type_t buffer_scalar_t;
+-typedef TensorSycl::SyclAllocator<buffer_scalar_t, EIGEN_MAX_ALIGN_BYTES> buffer_alloc_t;
++typedef cl::sycl::default_allocator<buffer_scalar_t> buffer_alloc_t;
+ 
+ template <cl::sycl::access::mode AcMd>
+ struct RangeAccess {
+diff -r ba64f5464c2f unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h
+--- a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h	Mon Dec 04 10:07:47 2017 +0000
++++ b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h	Mon Dec 04 10:24:17 2017 +0000
+@@ -54,7 +54,7 @@
+ /**
+  * Default values for template arguments
+  */
+-using buffer_data_type_t = uint8_t;
++using buffer_data_type_t = float;
+ using buffer_allocator_base_t = cl::sycl::buffer_allocator<buffer_data_type_t>;
+ using buffer_allocator_default_t =
+     cl::sycl::default_allocator<buffer_data_type_t>;

@@ -1,0 +1,207 @@
+Starting run_classifier
+
+Loading from eig_svd_64_1024_f...
+  Starting train_classifier
+#0 iter 1 diff_llk 2.35687
+#0 iter 2 diff_llk 0.0243093
+#0 iter 3 diff_llk 0.031254
+#0 iter 4 diff_llk 0.0343803
+#0 iter 5 diff_llk 0.0356438
+#0 iter 6 diff_llk 0.0277216
+#0 iter 7 diff_llk 0.0215239
+#0 iter 8 diff_llk 0.0164478
+#0 iter 9 diff_llk 0.0109942
+#0 iter 10 diff_llk 0.0130948
+#0 iter 11 diff_llk 0.0118692
+#0 iter 12 diff_llk 0.0138748
+#0 iter 13 diff_llk 0.0125689
+#0 iter 14 diff_llk 0.0113365
+#0 iter 15 diff_llk 0.00791035
+#0 iter 16 diff_llk 0.00876362
+#0 iter 17 diff_llk 0.0100213
+#0 iter 18 diff_llk 0.0061473
+#0 iter 19 diff_llk 0.00525227
+
+#1 iter 1 diff_llk 1.33865
+#1 iter 2 diff_llk 0.236532
+#1 iter 3 diff_llk 0.168281
+#1 iter 4 diff_llk 0.0494112
+#1 iter 5 diff_llk 0.0300818
+#1 iter 6 diff_llk 0.021682
+#1 iter 7 diff_llk 0.0191481
+#1 iter 8 diff_llk 0.0150912
+#1 iter 9 diff_llk 0.0112536
+#1 iter 10 diff_llk 0.00772147
+#1 iter 11 diff_llk 0.00699479
+#1 iter 12 diff_llk 0.00945274
+#1 iter 13 diff_llk 0.00626207
+#1 iter 14 diff_llk 0.0075318
+#1 iter 15 diff_llk 0.00563356
+#1 iter 16 diff_llk 0.00646681
+#1 iter 17 diff_llk 0.0075416
+#1 iter 18 diff_llk 0.00711092
+#1 iter 19 diff_llk 0.00722984
+
+#2 iter 1 diff_llk 0.979767
+#2 iter 2 diff_llk 0.0516922
+#2 iter 3 diff_llk 0.0370425
+#2 iter 4 diff_llk 0.0266382
+#2 iter 5 diff_llk 0.0205904
+#2 iter 6 diff_llk 0.0149524
+#2 iter 7 diff_llk 0.0124559
+#2 iter 8 diff_llk 0.0107466
+#2 iter 9 diff_llk 0.00866731
+#2 iter 10 diff_llk 0.0080415
+#2 iter 11 diff_llk 0.0082327
+#2 iter 12 diff_llk 0.0064077
+#2 iter 13 diff_llk 0.00657224
+#2 iter 14 diff_llk 0.00385856
+
+#3 iter 1 diff_llk 0.692466
+#3 iter 2 diff_llk 0.0331539
+#3 iter 3 diff_llk 0.0196821
+#3 iter 4 diff_llk 0.0171001
+#3 iter 5 diff_llk 0.0167163
+#3 iter 6 diff_llk 0.0109712
+#3 iter 7 diff_llk 0.0105942
+#3 iter 8 diff_llk 0.0108452
+#3 iter 9 diff_llk 0.0116729
+#3 iter 10 diff_llk 0.0105317
+#3 iter 11 diff_llk 0.00734535
+#3 iter 12 diff_llk 0.00753941
+#3 iter 13 diff_llk 0.0078554
+#3 iter 14 diff_llk 0.00588245
+#3 iter 15 diff_llk 0.00487552
+
+#4 iter 1 diff_llk 0.79918
+#4 iter 2 diff_llk 0.0377526
+#4 iter 3 diff_llk 0.0230548
+#4 iter 4 diff_llk 0.0204525
+#4 iter 5 diff_llk 0.0196993
+#4 iter 6 diff_llk 0.0177344
+#4 iter 7 diff_llk 0.0179724
+#4 iter 8 diff_llk 0.0195666
+#4 iter 9 diff_llk 0.0178161
+#4 iter 10 diff_llk 0.0166039
+#4 iter 11 diff_llk 0.0132342
+#4 iter 12 diff_llk 0.0100654
+#4 iter 13 diff_llk 0.00976158
+#4 iter 14 diff_llk 0.00733347
+#4 iter 15 diff_llk 0.00769303
+#4 iter 16 diff_llk 0.00858939
+#4 iter 17 diff_llk 0.00623984
+#4 iter 18 diff_llk 0.00515711
+#4 iter 19 diff_llk 0.00604998
+
+#5 iter 1 diff_llk 0.964829
+#5 iter 2 diff_llk 0.0414647
+#5 iter 3 diff_llk 0.0281313
+#5 iter 4 diff_llk 0.0197715
+#5 iter 5 diff_llk 0.0166526
+#5 iter 6 diff_llk 0.0145374
+#5 iter 7 diff_llk 0.0137042
+#5 iter 8 diff_llk 0.0124906
+#5 iter 9 diff_llk 0.0123887
+#5 iter 10 diff_llk 0.0122489
+#5 iter 11 diff_llk 0.0170579
+#5 iter 12 diff_llk 0.0174107
+#5 iter 13 diff_llk 0.0198817
+#5 iter 14 diff_llk 0.0202666
+#5 iter 15 diff_llk 0.0210125
+#5 iter 16 diff_llk 0.0227227
+#5 iter 17 diff_llk 0.0247461
+#5 iter 18 diff_llk 0.0267026
+#5 iter 19 diff_llk 0.0274912
+
+#6 iter 1 diff_llk 1.01418
+#6 iter 2 diff_llk 0.0462144
+#6 iter 3 diff_llk 0.0440556
+#6 iter 4 diff_llk 0.0506901
+#6 iter 5 diff_llk 0.0470988
+#6 iter 6 diff_llk 0.0316928
+#6 iter 7 diff_llk 0.0321263
+#6 iter 8 diff_llk 0.0240296
+#6 iter 9 diff_llk 0.0203878
+#6 iter 10 diff_llk 0.0129768
+#6 iter 11 diff_llk 0.011957
+#6 iter 12 diff_llk 0.00904449
+#6 iter 13 diff_llk 0.00797901
+#6 iter 14 diff_llk 0.00774196
+#6 iter 15 diff_llk 0.00818436
+#6 iter 16 diff_llk 0.00567841
+#6 iter 17 diff_llk 0.00722125
+#6 iter 18 diff_llk 0.00434797
+
+#7 iter 1 diff_llk 1.01467
+#7 iter 2 diff_llk 0.119115
+#7 iter 3 diff_llk 0.0586349
+#7 iter 4 diff_llk 0.0318661
+#7 iter 5 diff_llk 0.0239194
+#7 iter 6 diff_llk 0.017744
+#7 iter 7 diff_llk 0.0130337
+#7 iter 8 diff_llk 0.0107195
+#7 iter 9 diff_llk 0.00909907
+#7 iter 10 diff_llk 0.00959207
+#7 iter 11 diff_llk 0.00776364
+#7 iter 12 diff_llk 0.00767294
+#7 iter 13 diff_llk 0.00720093
+#7 iter 14 diff_llk 0.00649948
+#7 iter 15 diff_llk 0.00618846
+#7 iter 16 diff_llk 0.00482424
+
+#8 iter 1 diff_llk 0.833659
+#8 iter 2 diff_llk 0.0473953
+#8 iter 3 diff_llk 0.0280927
+#8 iter 4 diff_llk 0.0215311
+#8 iter 5 diff_llk 0.0193399
+#8 iter 6 diff_llk 0.0170266
+#8 iter 7 diff_llk 0.0139677
+#8 iter 8 diff_llk 0.0137015
+#8 iter 9 diff_llk 0.0124066
+#8 iter 10 diff_llk 0.0121046
+#8 iter 11 diff_llk 0.00912559
+#8 iter 12 diff_llk 0.00761297
+#8 iter 13 diff_llk 0.00700252
+#8 iter 14 diff_llk 0.00537825
+#8 iter 15 diff_llk 0.0042929
+
+#9 iter 1 diff_llk 1.2242
+#9 iter 2 diff_llk 0.0909052
+#9 iter 3 diff_llk 0.0479225
+#9 iter 4 diff_llk 0.0393099
+#9 iter 5 diff_llk 0.0340704
+#9 iter 6 diff_llk 0.0275553
+#9 iter 7 diff_llk 0.0225575
+#9 iter 8 diff_llk 0.0190236
+#9 iter 9 diff_llk 0.014865
+#9 iter 10 diff_llk 0.0132373
+#9 iter 11 diff_llk 0.0108664
+#9 iter 12 diff_llk 0.0086802
+#9 iter 13 diff_llk 0.00788653
+#9 iter 14 diff_llk 0.00637498
+#9 iter 15 diff_llk 0.00561508
+#9 iter 16 diff_llk 0.00576692
+#9 iter 17 diff_llk 0.00520693
+#9 iter 18 diff_llk 0.00389473
+
+  train_classifier: 37.3963s
+  Starting predict_classifier
+  predict_classifier: 0.233609s
+
+Success rate: 96.54%
+Precision: 96.5168%
+Recall: 96.5895%
+F1-score: 0.965532
+
+969   0     0     0     0     2     0     0     8     1
+0     1115  10    1     1     0     1     1     6     0
+1     0     1003  2     2     0     1     4     16    3
+1     0     3     971   0     7     0     3     22    3
+0     0     5     1     946   0     2     4     11    13
+2     0     0     14    0     850   2     1     20    3
+5     1     0     0     1     13    926   1     11    0
+0     2     16    0     2     0     0     974   9     25
+2     0     2     10    0     2     1     2     951   4
+0     0     8     12    20    2     0     4     14    949
+run_classifier: 63.9423s
+

@@ -22,6 +22,8 @@ In terms of more machine learning related operations it includes:
 
 SYCL-ML is a header only library which make it easy to integrate.
 
+More details on what the project implements and how it works can be found on [our website](https://www.codeplay.com/portal/12-21-17-alternative-machine-learning-algorithms-using-sycl-and-opencl).
+
 ## TODO list
 - Optimize **SVD** decomposition for faster PCA. The algorithm probably needs to be changed to compute eigenpairs differently.
 - Optimize **SVM** for GPU. More recent papers on SVM for GPU should be experimented.

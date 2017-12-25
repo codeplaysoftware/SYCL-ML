@@ -298,7 +298,7 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
   assert_eq(y.kernel_range.get_global_linear_range(), to_pow2(m));
 
   if (max_nb_iter == 0)
-    max_nb_iter = std::max(10000000LU, m > INT_MAX/100 ? INT_MAX : 100*m);
+    max_nb_iter = std::max(10000000ULL, m > std::numeric_limits<size_t>::max()/100ULL ? std::numeric_limits<size_t>::max() : 100ULL*m);
 
   vector_t<T> alphas(y.data_range, y.kernel_range);
   vector_t<T> gradient(y.data_range, y.kernel_range);
@@ -319,7 +319,7 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
   sycl_memset(q, alphas);
   sycl_copy(q, y, gradient);
   sycl_init_func_i(q, start_search_indices, start_search_indices.get_nd_range(), functors::identity<T>());
-  SYCLIndexT find_size_threshold_host = std::min(m, 8LU);
+  SYCLIndexT find_size_threshold_host = std::min(m, 8ULL);
 
   SYCLIndexT i;
   SYCLIndexT j;

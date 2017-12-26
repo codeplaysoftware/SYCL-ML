@@ -3,6 +3,7 @@
 
 #include "ml/math/qr.hpp"
 #include "ml/math/tri_solve.hpp"
+#include "ml/math/helper.hpp"
 
 namespace ml
 {
@@ -223,7 +224,7 @@ private:
 };
 
 template <class T>
-const T log_gaussian_distribution<T>::LOG_2_PI = std::log(2 * M_PI);
+const T log_gaussian_distribution<T>::LOG_2_PI = std::log(2 * ml::PI<T>);
 
 /**
  * @brief Wrapper around log_gaussian_distribution that stores some parameters.

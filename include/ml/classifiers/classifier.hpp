@@ -51,11 +51,11 @@ public:
    * @param[in] expected
    * @param nb_obs
    */
-  void print_score(const LabelT* predicted, const LabelT* expected, unsigned nb_obs) {
-    auto nb_labels = get_nb_labels();
+  static void print_score(const LabelT* predicted, const LabelT* expected, unsigned nb_obs, unsigned nb_labels,
+                          const std::unordered_map<LabelT, unsigned>& label_user_to_label_idx) {
     std::vector<unsigned> cm(nb_labels * nb_labels, 0);
     for (unsigned i = 0; i < nb_obs; ++i)
-      cm[_label_user_to_label_idx[expected[i]] * nb_labels + _label_user_to_label_idx[predicted[i]]] += 1;
+      cm[label_user_to_label_idx.at(expected[i]) * nb_labels + label_user_to_label_idx.at(predicted[i])] += 1;
 
     double success_rate = 0;
     double precision = 0;
@@ -98,6 +98,10 @@ public:
       }
     }
     std::cout.fill(prev_fill);
+  }
+
+  inline void print_score(const LabelT* predicted, const LabelT* expected, unsigned nb_obs) {
+    classifier<DataT, LabelT>::print_score(predicted, expected, nb_obs, get_nb_labels(), _label_user_to_label_idx);
   }
 
   virtual void load_from_disk(queue&) { assert(false); }

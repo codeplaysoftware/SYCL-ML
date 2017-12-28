@@ -51,7 +51,7 @@ public:
    * @param max_nb_iter
    */
   explicit svm(DataType c, KernelType ker = KernelType(), SYCLIndexT nb_cache_line = 2,
-               DataType tol = 1E-2, DataType eps = 1E-8, SYCLIndexT max_nb_iter = 0) :
+               DataType tol = 1E-2, DataType eps = 1E-2, SYCLIndexT max_nb_iter = 0) :
       _c(c), _ker(ker), _tol(tol), _eps(eps), _nb_cache_line(nb_cache_line), _max_nb_iter(max_nb_iter),
       _data_dim(0), _data_dim_pow2(0), _nb_labels(0), _smo_outs()
   {
@@ -196,7 +196,9 @@ public:
         std::cout << "Training (" << i << ", " << j << ") ..." << std::endl;
         // The padded nb_obs of act_data don't need to be initialized
         push_back_smo(q, act_data, act_internal_labels);
-        std::cout << "Number support vectors: " << _smo_outs.back().alphas.data_range[0] << "\n" << std::endl;
+        auto back = _smo_outs.back();
+        std::cout << "Nb iter: " << back.nb_iter << "\n";
+        std::cout << "Number support vectors: " << back.alphas.data_range[0] << "\n" << std::endl;
       }
     }
   }

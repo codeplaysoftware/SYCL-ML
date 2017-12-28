@@ -284,15 +284,15 @@ struct smo_out {
  * @param[in] x data of size mxn where m is the number of observation
  * @param[in] y labels must be a vector of size pow2(m) with -1 or 1 the first m elements and 0 after
  * @param c parameter for C-SVM
- * @param tol criteria for stopping condition, should be greater than eps
- * @param eps threshold above which alpha needs to be to be used as a weight of a support vector
+ * @param tol criteria for stopping condition
+ * @param alpha_eps threshold above which alpha needs to be to be used as a weight of a support vector
  * @param max_nb_iter maximum number of iterations
  * @param kernel_cache
  * @return smo_out containing the support vectors svs, the alphas (multiplied by their respective labels) and
  *         the offset rho
  */
 template <class KernelCacheT, class T>
-smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCLIndexT max_nb_iter,
+smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T alpha_eps, SYCLIndexT max_nb_iter,
               KernelCacheT kernel_cache) {
   auto m = access_ker_dim(x, 0);
   assert_eq(y.kernel_range.get_global_linear_range(), to_pow2(m));
@@ -309,8 +309,8 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
   vector_t<T> vec_cond_greater(y.data_range, y.kernel_range);
   vector_t<T> vec_cond_less(y.data_range, y.kernel_range);
 
-  auto cond_greater = [c, eps](T y, T a) { return T((y > 0 && a < c) || (y < 0 && a > eps)); };
-  auto cond_less = [c, eps](T y, T a) { return T((y > 0 && a > eps) || (y < 0 && a < c)); };
+  auto cond_greater = [c, alpha_eps](T y, T a) { return T((y > 0 && a < c) || (y < 0 && a > alpha_eps)); };
+  auto cond_less = [c, alpha_eps](T y, T a) { return T((y > 0 && a > alpha_eps) || (y < 0 && a < c)); };
 
   // Compute initial cond
   vec_unary_op(q, y, vec_cond_greater, ml::functors::positive<T>());
@@ -325,6 +325,7 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
   SYCLIndexT j;
   T diff;
   SYCLIndexT nb_iter = 0;
+  T eps = 1E-8;
   while (nb_iter < max_nb_iter) {
     if (!detail::select_wss(q, y, gradient, vec_cond_greater, vec_cond_less, tol, eps, start_search_indices,
                             start_search_rng, find_size_threshold_host, kernel_cache, i, j, diff)) {
@@ -360,19 +361,17 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
     // Update gradient
     T delta_ai = yi * (ai - old_ai);
     T delta_aj = yj * (aj - old_aj);
+
     // Shouldn't happen in theory but can because of precision issue
-    if (std::abs(delta_ai) < eps && std::abs(delta_aj) < eps) {
-      std::cerr << "SVM cannot converge, try setting a smaller eps or a bigger tol." << std::endl;
-      break;
-    }
-    else {
-      detail::update_gradient(q, delta_ai, delta_aj, ker_i_t, ker_j_t, gradient);
-      vec_cond_greater.write_from_host(i, cond_greater(yi, ai));
-      vec_cond_greater.write_from_host(j, cond_greater(yj, aj));
-      vec_cond_less.write_from_host(i, cond_less(yi, ai));
-      vec_cond_less.write_from_host(j, cond_less(yj, aj));
-      ++nb_iter;
-    }
+    assert(std::abs(delta_ai) >= eps);
+    assert(std::abs(delta_aj) >= eps);
+
+    detail::update_gradient(q, delta_ai, delta_aj, ker_i_t, ker_j_t, gradient);
+    vec_cond_greater.write_from_host(i, cond_greater(yi, ai));
+    vec_cond_greater.write_from_host(j, cond_greater(yj, aj));
+    vec_cond_less.write_from_host(i, cond_less(yi, ai));
+    vec_cond_less.write_from_host(j, cond_less(yj, aj));
+    ++nb_iter;
   }
 
   if (nb_iter == max_nb_iter)
@@ -382,7 +381,7 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol, T eps, SYCL
   auto host_alphas = alphas.template get_access<access::mode::read>();
   std::vector<uint32_t> host_sv_indices;
   for (unsigned k = 0; k < m; ++k) {
-    if (host_alphas[k] > eps)
+    if (host_alphas[k] > alpha_eps)
       host_sv_indices.push_back(k);
   }
   auto nb_sv = host_sv_indices.size();

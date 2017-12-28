@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
   pca_args.keep_percent = 0.8;  // Keep at least 80% of information
   pca_args.scale_factor = 1E2;  // More accurate but slower PCA
 
-  run_classifier(mnist_path, pca_args, ml::svm<svm_kernel_t, label_t>(C, ker, 2, 0.1));
+  run_classifier(mnist_path, pca_args, ml::svm<svm_kernel_t, label_t>(C, ker, 2, 0.1, 0.1));
 
   return 0;
 }

@@ -1,17 +1,6 @@
-diff --git a/cmake/EigenTesting.cmake b/cmake/EigenTesting.cmake
---- a/cmake/EigenTesting.cmake
-+++ b/cmake/EigenTesting.cmake
-@@ -125,6 +125,7 @@
- 
-   if(NOT EIGEN_SYCL_TRISYCL)
-     include_directories( SYSTEM ${COMPUTECPP_PACKAGE_ROOT_DIR}/include)
-+    include_directories( SYSTEM ${OpenCL_INCLUDE_DIR})
- 
-     ADD_CUSTOM_COMMAND(
-       OUTPUT ${include_file}
-diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h b/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
---- a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
-+++ b/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
+diff -r ba64f5464c2f unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
+--- a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Mon Dec 04 10:07:47 2017 +0000
++++ b/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Mon Dec 04 10:24:17 2017 +0000
 @@ -60,7 +60,7 @@
  }// End namespace TensorSycl
  
@@ -21,78 +10,9 @@ diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h b/unsupported
  
  template <cl::sycl::access::mode AcMd>
  struct RangeAccess {
-@@ -137,7 +137,7 @@
- #endif
-   {
- #ifdef SYCL_USE_PROGRAM_CLASS
--    m_prog.build_from_kernel_name<dev_Selector>();
-+    m_prog.build_with_kernel_type<dev_Selector>();
-     m_queue.submit([&](cl::sycl::handler &cgh) {
-         cgh.single_task<dev_Selector>(m_prog.get_kernel<dev_Selector>(), [=]() {});
-       });
-@@ -278,7 +278,7 @@
-     m_queue.submit([&](cl::sycl::handler &cgh) {
-       auto src_acc= get_range_accessor<read_mode>(cgh, src, n);
-       auto dst_acc= get_range_accessor<write_mode>(cgh, dst, n);
--      cgh.template copy(src_acc, dst_acc);
-+      cgh.copy(src_acc, dst_acc);
-     });
-     synchronize();
-   }
-@@ -293,7 +293,7 @@
-       auto dst_acc= get_range_accessor<write_mode>(cgh, data, n);
-       // The cast to uint8_t is here to match the behaviour of the standard memset.
-       // The cast to buffer_scalar_t is needed to match the type of the accessor (in case buffer_scalar_t is not uint8_t)
--      cgh.template fill(dst_acc, static_cast<buffer_scalar_t>(static_cast<uint8_t>(c)));
-+      cgh.fill(dst_acc, static_cast<buffer_scalar_t>(static_cast<uint8_t>(c)));
-     });
-     synchronize();
-   }
-diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorReductionSycl.h b/unsupported/Eigen/CXX11/src/Tensor/TensorReductionSycl.h
---- a/unsupported/Eigen/CXX11/src/Tensor/TensorReductionSycl.h
-+++ b/unsupported/Eigen/CXX11/src/Tensor/TensorReductionSycl.h
-@@ -295,7 +295,7 @@
-         Tuple_of_Acc tuple_of_accessors =  TensorSycl::internal::createTupleOfAccessors(cgh, self.impl());
-         auto output_accessor = dev.template get_range_accessor<cl::sycl::access::mode::write>(cgh, output);
-         Index red_size = (num_values_to_reduce != 0) ? num_values_to_reduce : static_cast<Index>(1);
--        TensorSycl::internal::ReductionFunctor<HostExpr, decltype(functors), decltype(reduction_members), Tuple_of_Acc, Dims, Op, typename Self::Index>
-+        TensorSycl::internal::ReductionFunctor < HostExpr, typename std::remove_reference<decltype(functors)>::type, typename std::remove_reference<decltype(reduction_members)>::type, Tuple_of_Acc, Dims, Op, typename Self::Index >
-         functorRed (output_accessor, functors, reduction_members, tuple_of_accessors, reducer, range, red_size);
-         cgh.parallel_for(
- #ifdef SYCL_USE_PROGRAM_CLASS
-@@ -335,8 +335,8 @@
-         // create a tuple of accessors from Evaluator
-         Tuple_of_Acc tuple_of_accessors =  TensorSycl::internal::createTupleOfAccessors(cgh, self.impl());
-         auto output_accessor = dev.template get_range_accessor<cl::sycl::access::mode::write>(cgh, output);
--        Index red_size = (num_values_to_reduce != 0) ? num_values_to_reduce : static_cast<Index>(1);
--        TensorSycl::internal::SYCLInnerMostDimPreserver<HostExpr,  decltype(functors), decltype(reduction_members), Tuple_of_Acc, Dims, Op, typename Self::Index>
-+        Index red_size = (num_values_to_reduce != 0) ? num_values_to_reduce : static_cast<Index>(1);        
-+        TensorSycl::internal::SYCLInnerMostDimPreserver<HostExpr, typename std::remove_reference<decltype(functors)>::type, typename std::remove_reference<decltype(reduction_members)>::type, Tuple_of_Acc, Dims, Op, typename Self::Index>
-         functorRed (output_accessor, functors, reduction_members, tuple_of_accessors, reducer, range, red_size);
-         cgh.parallel_for(
- #ifdef SYCL_USE_PROGRAM_CLASS
-diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclRun.h b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclRun.h
---- a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclRun.h
-+++ b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclRun.h
-@@ -135,13 +135,13 @@
- dev.program(). template get_kernel<ExecExprFunctorKernel<Expr, decltype(functors),TupleType, true>>(),
- #endif
-         cl::sycl::nd_range<1>(cl::sycl::range<1>(GRange), cl::sycl::range<1>(tileSize)),
--        ExecExprFunctorKernel<Expr, decltype(functors),TupleType, true>(functors, tuple_of_accessors, range, vectorizable_threads)):
-+        ExecExprFunctorKernel<Expr, typename std::remove_reference<decltype(functors)>::type, TupleType, true>(functors, tuple_of_accessors, range, vectorizable_threads)):
-       cgh.parallel_for(
- #ifdef SYCL_USE_PROGRAM_CLASS
- dev.program().template get_kernel<ExecExprFunctorKernel<Expr, decltype(functors),TupleType, false>>(),
- #endif
-         cl::sycl::nd_range<1>(cl::sycl::range<1>(GRange), cl::sycl::range<1>(tileSize)),
--        ExecExprFunctorKernel<Expr, decltype(functors),TupleType, false>(functors, tuple_of_accessors, range, vectorizable_threads));
-+        ExecExprFunctorKernel<Expr, typename std::remove_reference<decltype(functors)>::type, TupleType, false>(functors, tuple_of_accessors, range, vectorizable_threads));
-       });
-         dev.asynchronousExec();
-     }
-diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h
---- a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h
-+++ b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h
+diff -r ba64f5464c2f unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h
+--- a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h	Mon Dec 04 10:07:47 2017 +0000
++++ b/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h	Mon Dec 04 10:24:17 2017 +0000
 @@ -54,7 +54,7 @@
  /**
   * Default values for template arguments
@@ -102,17 +22,3 @@ diff --git a/unsupported/Eigen/CXX11/src/Tensor/TensorSyclVirtualPointer.h b/uns
  using buffer_allocator_base_t = cl::sycl::buffer_allocator<buffer_data_type_t>;
  using buffer_allocator_default_t =
      cl::sycl::default_allocator<buffer_data_type_t>;
-diff --git a/unsupported/test/CMakeLists.txt b/unsupported/test/CMakeLists.txt
---- a/unsupported/test/CMakeLists.txt
-+++ b/unsupported/test/CMakeLists.txt
-@@ -161,6 +161,10 @@
-       set(CMAKE_CXX_STANDARD 11)
-       set(STD_CXX_FLAG "-std=c++11")
-     endif(EIGEN_SYCL_TRISYCL)
-+	
-+	if(EIGEN_USE_SYCL)
-+		add_definitions("-DEIGEN_USE_SYCL")
-+	endif(EIGEN_USE_SYCL)
- 
-     ei_add_test_sycl(cxx11_tensor_sycl ${STD_CXX_FLAG})
-     ei_add_test_sycl(cxx11_tensor_corss_entropy_sycl ${STD_CXX_FLAG})

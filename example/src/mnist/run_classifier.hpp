@@ -47,7 +47,7 @@ void run_classifier(const std::string& mnist_path, const ml::pca_args<typename C
     // Load the train data, perform PCA and train the classifier
     {
       unsigned obs_size, padded_obs_size, nb_train_obs;
-      // Load tain data
+      // Load train data
       ml::matrix_t<DataType> sycl_train_data;
       {
         auto host_train_data = read_mnist_images<DataType>(mnist_get_train_images_path(mnist_path),

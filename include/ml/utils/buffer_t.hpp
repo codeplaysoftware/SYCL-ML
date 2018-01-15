@@ -8,13 +8,15 @@
 #include "ml/utils/copy.hpp"
 #include "ml/utils/debug/print_utils.hpp"
 
+#ifndef ML_DEBUG_BOUND_CHECK
 /**
  * @brief Set to 1 for buffer initialization with nan and boundaries access check.
  *
  * For debug only.
  * @warning Very slow.
  */
-#define DEBUG_BOUND_CHECK 0
+#define ML_DEBUG_BOUND_CHECK 0
+#endif  // ML_DEBUG_BOUND_CHECK
 
 namespace ml
 {
@@ -23,11 +25,11 @@ namespace detail
 {
 
 // Forward declare buffer_nd_acc_t
-template <class, access::mode>
+template <class, access::mode, access::target>
 class buffer_1d_acc_t;
-template <class, access::mode, data_dim>
+template <class, access::mode, data_dim, access::target>
 class buffer_2d_acc_t;
-template <class, access::mode>
+template <class, access::mode, access::target>
 class buffer_3d_acc_t;
 
 // Specialize get_1d_kernel_nd_range
@@ -78,7 +80,7 @@ public:
 
   buffer_t(const range<DIM>& r, const nd_range<DIM>& k) :
       buffer_t(sycl_vec_t<T>(range<1>(k.get_global().size())), r, k) {
-#if DEBUG_BOUND_CHECK
+#if ML_DEBUG_BOUND_CHECK
     if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
       T init = std::numeric_limits<T>::quiet_NaN();
       sycl_memset(get_eigen_device().sycl_queue(), *this, get_1d_kernel_nd_range(), init);
@@ -146,19 +148,19 @@ public:
   }
 
   // Custom accessors for n dimensions allowing compile time transpose
-  template <access::mode acc_mode>
-  inline detail::buffer_1d_acc_t<T, acc_mode> get_access_1d(handler& cgh) {
-    return detail::buffer_1d_acc_t<T, acc_mode>(cgh, *this);
+  template <access::mode acc_mode, access::target acc_target = access::target::global_buffer>
+  inline detail::buffer_1d_acc_t<T, acc_mode, acc_target> get_access_1d(handler& cgh) {
+    return detail::buffer_1d_acc_t<T, acc_mode, acc_target>(cgh, *this);
   }
 
-  template <access::mode acc_mode, data_dim D = LIN>
-  inline detail::buffer_2d_acc_t<T, acc_mode, D> get_access_2d(handler& cgh) {
-    return detail::buffer_2d_acc_t<T, acc_mode, D>(cgh, *this);
+  template <access::mode acc_mode, data_dim D = LIN, access::target acc_target = access::target::global_buffer>
+  inline detail::buffer_2d_acc_t<T, acc_mode, D, acc_target> get_access_2d(handler& cgh) {
+    return detail::buffer_2d_acc_t<T, acc_mode, D, acc_target>(cgh, *this);
   }
 
-  template <access::mode acc_mode>
-  inline detail::buffer_3d_acc_t<T, acc_mode> get_access_3d(handler& cgh) {
-    return detail::buffer_3d_acc_t<T, acc_mode>(cgh, *this);
+  template <access::mode acc_mode, access::target acc_target = access::target::global_buffer>
+  inline detail::buffer_3d_acc_t<T, acc_mode, acc_target> get_access_3d(handler& cgh) {
+    return detail::buffer_3d_acc_t<T, acc_mode, acc_target>(cgh, *this);
   }
 
   // Host accessor helper
@@ -221,64 +223,76 @@ struct get_index_2d<TR> {
   static inline SYCLIndexT compute(SYCLIndexT r, SYCLIndexT c, SYCLIndexT nb_cols) { return c * nb_cols + r; }
 };
 
-template <class T, access::mode acc_mode>
+template <class T, access::mode>
+struct is_reference_access {
+  using value = T&;
+};
+
+template <class T>
+struct is_reference_access<T, access::mode::read> {
+  using value = T;
+};
+
+template <class T, access::mode acc_mode, access::target acc_target>
 class buffer_1d_acc_t {
 public:
   buffer_1d_acc_t(handler& cgh, buffer_t<T, 1>& b) :
       _range(b.get_kernel_range()),
       _acc(b.template get_access<acc_mode>(cgh)) {}
 
-  inline T& operator()(SYCLIndexT x) const {
-#if DEBUG_BOUND_CHECK
-    if (x < 0 || x >= _range[0])
-      printf("Error accessing (%lu) from (%lu)\n", x, _range[0]);
+  inline typename is_reference_access<T, acc_mode>::value operator()(SYCLIndexT x) const {
+#if ML_DEBUG_BOUND_CHECK
+    if (x >= _range[0])
+      printf("Warning accessing at (%lu) from buffer of size (%lu)\n", x, _range[0]);
 #endif
     return _acc[x];
   }
 
 private:
   range<1> _range;
-  accessor<T, 1, acc_mode, access::target::global_buffer> _acc;
+  accessor<T, 1, acc_mode, acc_target> _acc;
 };
 
-template <class T, access::mode acc_mode, data_dim D>
+template <class T, access::mode acc_mode, data_dim D, access::target acc_target>
 class buffer_2d_acc_t {
 public:
   buffer_2d_acc_t(handler& cgh, buffer_t<T, 2>& b) :
       _range(b.get_kernel_range()),
       _acc(b.template get_access<acc_mode>(cgh)) {}
 
-  inline T& operator()(SYCLIndexT r, SYCLIndexT c) const {
-#if DEBUG_BOUND_CHECK
-    if (r < 0 || r >= access_rng<D>(_range, 0) || c < 0 || c >= access_rng<D>(_range, 1))
-      printf("Error accessing (%lu, %lu) from (%lu, %lu)\n", r, c, access_rng<D>(_range, 0), access_rng<D>(_range, 1));
+  inline typename is_reference_access<T, acc_mode>::value operator()(SYCLIndexT r, SYCLIndexT c) const {
+#if ML_DEBUG_BOUND_CHECK
+    if (r >= access_rng<D>(_range, 0) || c >= access_rng<D>(_range, 1))
+      printf("Warning accessing at (%lu, %lu) from buffer of size (%lu, %lu)\n",
+             r, c, access_rng<D>(_range, 0), access_rng<D>(_range, 1));
 #endif
     return _acc[detail::get_index_2d<D>::compute(r, c, _range[1])];
   }
 
 private:
   range<2> _range;
-  accessor<T, 1, acc_mode, access::target::global_buffer> _acc;
+  accessor<T, 1, acc_mode, acc_target> _acc;
 };
 
-template <class T, access::mode acc_mode>
+template <class T, access::mode acc_mode, access::target acc_target>
 class buffer_3d_acc_t {
 public:
   buffer_3d_acc_t(handler& cgh, buffer_t<T, 3>& b) :
       _range(b.get_kernel_range()),
       _acc(b.template get_access<acc_mode>(cgh)) {}
 
-  inline T& operator()(SYCLIndexT x, SYCLIndexT y, SYCLIndexT z) const {
-#if DEBUG_BOUND_CHECK
-    if (x < 0 || x >= _range[0] || y < 0 || y >= _range[1] || z < 0 || z >= _range[2])
-      printf("Error accessing (%lu, %lu, %lu) from (%lu, %lu, %lu)\n", x, y, z, _range[0], _range[1], _range[2]);
+  inline typename is_reference_access<T, acc_mode>::value operator()(SYCLIndexT x, SYCLIndexT y, SYCLIndexT z) const {
+#if ML_DEBUG_BOUND_CHECK
+    if (x >= _range[0] || y >= _range[1] || z >= _range[2])
+      printf("Warning accessing at (%lu, %lu, %lu) from buffer of size (%lu, %lu, %lu)\n",
+             x, y, z, _range[0], _range[1], _range[2]);
 #endif
     return _acc[x + _range[1] * (y + _range[2] * z)];
   }
 
 private:
   range<3> _range;
-  accessor<T, 1, acc_mode, access::target::global_buffer> _acc;
+  accessor<T, 1, acc_mode, acc_target> _acc;
 };
 
 } // detail

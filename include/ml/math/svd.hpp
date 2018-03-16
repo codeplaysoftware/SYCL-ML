@@ -1,11 +1,6 @@
 #ifndef INCLUDE_ML_MATH_SVD_HPP
 #define INCLUDE_ML_MATH_SVD_HPP
 
-#include <cmath>
-#include <algorithm>
-#include <vector>
-#include <numeric>
-
 #include "ml/math/vec_ops.hpp"
 #include "ml/math/mat_mul.hpp"
 

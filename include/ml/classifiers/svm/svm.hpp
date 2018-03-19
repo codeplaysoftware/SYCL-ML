@@ -134,7 +134,7 @@ public:
     // Compute indices for each labels
     SYCLIndexT nb_obs = access_data_dim(dataset, 0);
     // Labels have already been copied to host by setup_train
-    auto host_labels = labels.template get_access<access::mode::read>(id<1>(0), range<1>(0));
+    auto host_labels = labels.template get_access<access::mode::read>(range<1>(0), id<1>(0));
     auto indices_per_label = this->get_labels_indices(host_labels, nb_labels, nb_obs);
 
     unsigned max_act_data_nb_obs;

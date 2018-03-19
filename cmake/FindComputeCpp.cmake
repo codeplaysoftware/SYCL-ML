@@ -73,6 +73,14 @@ endif()
 find_package(OpenCL REQUIRED)
 
 # Find ComputeCpp package
+
+# Try to read the environment variable
+if(DEFINED ENV{COMPUTECPP_PACKAGE_ROOT_DIR})
+  if(NOT COMPUTECPP_PACKAGE_ROOT_DIR)
+    set(COMPUTECPP_PACKAGE_ROOT_DIR $ENV{COMPUTECPP_PACKAGE_ROOT_DIR})
+  endif()
+endif()
+
 if(NOT COMPUTECPP_PACKAGE_ROOT_DIR)
   message(FATAL_ERROR
     "ComputeCpp package - Not found! (please set COMPUTECPP_PACKAGE_ROOT_DIR)")
@@ -205,7 +213,7 @@ define_property(
 )
 
 ####################
-#   __build_sycl
+#   __build_spir
 ####################
 #
 #  Adds a custom target for running compute++ and adding a dependency for the
@@ -243,6 +251,7 @@ function(__build_spir targetName sourceFile binaryDir fileCounter)
         ${device_compiler_includes})
     endforeach()
   endif()
+  list(REMOVE_DUPLICATES device_compiler_includes)
 
   # Obtain language standard of the file
   set(device_compiler_cxx_standard)
@@ -254,7 +263,7 @@ function(__build_spir targetName sourceFile binaryDir fileCounter)
   elseif (targetCxxStandard MATCHES 11)
     set(device_compiler_cxx_standard "-std=c++11")
   elseif (targetCxxStandard MATCHES 98)
-    message(FATAL_ERROR "SYCL implementations cannot be compiled using C++98")
+    message(FATAL_ERROR "SYCL applications cannot be compiled using C++98")
   else ()
     set(device_compiler_cxx_standard "")
   endif()
@@ -285,40 +294,57 @@ function(__build_spir targetName sourceFile binaryDir fileCounter)
   # (user-defined name)_(source file)_(counter)_ih
   set(headerTargetName
     ${targetName}_${sourceFileName}_${fileCounter}_ih)
-  
-  # Add a custom target for the generated integration header
-  add_custom_target(${headerTargetName} DEPENDS ${outputSyclFile})
 
-  # Add a dependency on the integration header
-  add_dependencies(${targetName} ${headerTargetName})
+  if(NOT MSVC)
+    # Add a custom target for the generated integration header
+    add_custom_target(${headerTargetName} DEPENDS ${outputSyclFile})
+
+    # Add a dependency on the integration header
+    add_dependencies(${targetName} ${headerTargetName})
+  endif()
+
+  # This property can be set on a per-target basis to indicate that the
+  # integration header should appear after the main source listing
+  get_property(includeAfter TARGET ${targetName}
+      PROPERTY COMPUTECPP_INCLUDE_AFTER)
+
+  if(includeAfter)
+    # Change the source file to the integration header - e.g.
+    # g++ -c source_file_name.cpp.sycl
+    set_property(TARGET ${targetName} PROPERTY SOURCES ${outputSyclFile})
+    # CMake/gcc don't know what language a .sycl file is, so tell them
+    set_property(SOURCE ${outputSyclFile} PROPERTY LANGUAGE CXX)
+    set(includedFile ${sourceFile})
+  else()
+    set(includedFile ${outputSyclFile})
+  endif()
 
   # Force inclusion of the integration header for the host compiler
   if(MSVC)
+    # Group SYCL files inside Visual Studio
+    source_group("SYCL" FILES ${outputSyclFile})
+
+    if(includeAfter)
+      # Allow the source file to be edited using Visual Studio.
+      # It will be added as a header file so it won't be compiled.
+      set_property(SOURCE ${sourceFile} PROPERTY HEADER_FILE_ONLY true)
+    endif()
+
+    # Add both source and the sycl files to the VS solution.
+    target_sources(${targetName} PUBLIC ${sourceFile} ${outputSyclFile})
+
     # NOTE: The Visual Studio generators parse compile flags differently,
     # hence the different argument syntax
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
-      set(forceIncludeFlags "/FI\"${outputSyclFile}\"")
+      set(forceIncludeFlags "/FI\"${includedFile}\" /TP")
     else()
-      set(forceIncludeFlags /FI ${outputSyclFile})
+      set(forceIncludeFlags /FI ${includedFile} /TP)
     endif()
   else()
-    # This property can be set on a per-target basis to indicate that the
-    # integration header should appear after the main source listing
-    get_property(includeAfter TARGET ${targetName}
-        PROPERTY COMPUTECPP_INCLUDE_AFTER)
-    if(includeAfter)
-      # Change the source file to the integration header - i.e.
-      # g++ -c source_file_name.cpp.sycl
-      set_property(TARGET ${targetName} PROPERTY SOURCES ${outputSyclFile})
-      # CMake/gcc don't know what language a .sycl file is, so tell them
-      set_property(SOURCE ${outputSyclFile} PROPERTY LANGUAGE CXX)
-      set(forceIncludeFlags "-include ${sourceFile} -x c++")
-    else()
-      set(forceIncludeFlags "-include ${outputSyclFile}")
-    endif()
+      set(forceIncludeFlags "-include ${includedFile} -x c++")
   endif()
-  # Seems that target_compile_options remove duplicated flags, which
-  # does not work for -include which cannot be removed (CMake bug #15826)
+  # target_compile_options removes duplicated flags, which does not work
+  # for -include (it should appear once per included file - CMake bug #15826)
   #   target_compile_options(${targetName} BEFORE PUBLIC ${forceIncludeFlags})
   # To avoid the problem, we get the value of the property and manually append
   # it to the previous status.
@@ -326,7 +352,6 @@ function(__build_spir targetName sourceFile binaryDir fileCounter)
   set_property(TARGET ${targetName} PROPERTY COMPILE_FLAGS
                   "${forceIncludeFlags} ${currentFlags}")
 
-  # Disable GCC dual ABI on GCC 5.1 and higher
   if(COMPUTECPP_DISABLE_GCC_DUAL_ABI)
     set_property(TARGET ${targetName} APPEND PROPERTY COMPILE_DEFINITIONS
       "_GLIBCXX_USE_CXX11_ABI=0")
@@ -356,6 +381,9 @@ function(add_sycl_to_target targetName binaryDir sourceFiles)
   )
   # Add custom target to run compute++ and generate the integration header
   foreach(sourceFile ${sourceFiles})
+    if(NOT IS_ABSOLUTE ${sourceFile})
+      set(sourceFile "${CMAKE_CURRENT_SOURCE_DIR}/${sourceFile}")
+    endif()
     __build_spir(${targetName} ${sourceFile} ${binaryDir} ${fileCounter})
     MATH(EXPR fileCounter "${fileCounter} + 1")
   endforeach()

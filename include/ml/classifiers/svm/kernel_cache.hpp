@@ -24,7 +24,7 @@ template <class KerFun, class T>
 class kernel_cache {
 public:
   kernel_cache(queue& q, const KerFun& ker, matrix_t<T>& x, const range<1>& data_rng, const nd_range<1>& ker_rng) :
-      _q(q), _ker(ker), _x(x), _ker_diag_buf(data_rng, ker_rng), _host_ker_diag(_ker_diag_buf, id<1>(0), range<1>(0)) {
+      _q(q), _ker(ker), _x(x), _ker_diag_buf(data_rng, ker_rng), _host_ker_diag(_ker_diag_buf, range<1>(0), id<1>(0)) {
     // Compute the diagonal values of ker only once
     ker(q, x, _ker_diag_buf);
     auto m = access_ker_dim(x, 0);

@@ -67,7 +67,7 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient, vecto
                        SYCLIndexT size_threshold_host, Compare comp, SYCLIndexT& extremum_idx) {
   auto search_size = search_rng.get_global_linear_range();
   if (search_size <= size_threshold_host) { // Search on the host starting from the end
-    auto host_in_indices = in_indices.template get_access<access::mode::read>(id<1>(0), range<1>(2 * search_size));
+    auto host_in_indices = in_indices.template get_access<access::mode::read>(range<1>(2 * search_size), id<1>(0));
     long k = 2 * search_size - 1;
     extremum_idx = -1;
     T extremum_gradient;

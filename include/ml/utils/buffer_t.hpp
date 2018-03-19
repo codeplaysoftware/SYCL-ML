@@ -165,11 +165,11 @@ public:
 
   // Host accessor helper
   inline T read_to_host(SYCLIndexT i) {
-    return this->template get_access<access::mode::read>(id<1>(i), range<1>(1))[i];
+    return this->template get_access<access::mode::read>(range<1>(1), id<1>(i))[i];
   }
 
   inline void write_from_host(SYCLIndexT i, T val) {
-    this->template get_access<access::mode::write>(id<1>(i), range<1>(1))[i] = val;
+    this->template get_access<access::mode::write>(range<1>(1), id<1>(i))[i] = val;
   }
 
   // Getters

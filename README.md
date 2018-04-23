@@ -35,7 +35,7 @@ SYCL-ML has been tested with:
 - Ubuntu 16.04.3, kernel 4.13.0-26, amdgpu pro driver 17.40  OR  Ubuntu 14.04.5, kernel 3.19.0-79, fglrx driver 2:15.302
 - CMake 3.0
 - g++ 5.4
-- ComputeCpp 0.6.1
+- ComputeCpp 0.7.0
 
 ComputeCpp can be downloaded from the [CodePlay](https://www.codeplay.com/products/computesuite/computecpp) website.
 Once extracted, ComputeCpp path should be set as an environment variable to `COMPUTECPP_PACKAGE_ROOT_DIR` (usually */usr/local/computecpp*).

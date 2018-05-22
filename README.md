@@ -53,7 +53,7 @@ The version of Eigen needed is slightly different than the upstream.
 The changes are packed in the `eigen.patch` file which the next section shows how to apply.
 ```bash
 hg clone https://bitbucket.org/mehdi_goli/opencl
-hg up Eigen-Optimised-Tensor-Vector-Contraction
+hg up Eigen-SYCL-OpenCL
 ```
 
 ## Building

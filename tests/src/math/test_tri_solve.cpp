@@ -100,8 +100,12 @@ void test_tri_solve_tr() {
 }
 
 int main(void) {
-  test_tri_solve<ml::buffer_data_type>();
-  test_tri_solve_tr<ml::buffer_data_type>();
+  try {
+    test_tri_solve<ml::buffer_data_type>();
+    test_tri_solve_tr<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

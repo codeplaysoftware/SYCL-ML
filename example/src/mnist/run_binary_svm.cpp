@@ -124,7 +124,11 @@ int main(int argc, char** argv) {
   std::string mnist_path = "data/mnist";
   if (argc >= 2)
     mnist_path = argv[1];
-  run_binary_svm<ml::buffer_data_type, uint8_t>(mnist_path);
+  try {
+    run_binary_svm<ml::buffer_data_type, uint8_t>(mnist_path);
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

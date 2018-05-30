@@ -147,10 +147,14 @@ void test_simple_and_eigen_vec() {
 }
 
 int main() {
-  test_square<ml::buffer_data_type>();
-  test_general<ml::buffer_data_type>();
-  test_simple_and_eigen<ml::buffer_data_type>();
-  test_simple_and_eigen_vec<ml::buffer_data_type>();
+  try {
+    test_square<ml::buffer_data_type>();
+    test_general<ml::buffer_data_type>();
+    test_simple_and_eigen<ml::buffer_data_type>();
+    test_simple_and_eigen_vec<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

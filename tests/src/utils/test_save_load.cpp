@@ -48,10 +48,14 @@ void test_save_load_device() {
 }
 
 int main() {
-  test_save_load_host<float>();
-  test_save_load_host<double>();
-  test_save_load_device<float>();
-  test_save_load_device<double>();
+  try {
+    test_save_load_host<float>();
+    test_save_load_host<double>();
+    test_save_load_device<float>();
+    test_save_load_device<double>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

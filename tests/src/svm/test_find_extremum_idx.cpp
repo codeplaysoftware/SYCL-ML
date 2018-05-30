@@ -36,7 +36,11 @@ void test_find_extremum_idx() {
 }
 
 int main() {
-  test_find_extremum_idx<ml::buffer_data_type>();
+  try {
+    test_find_extremum_idx<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

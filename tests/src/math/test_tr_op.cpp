@@ -77,8 +77,12 @@ void test_tr_lin_inplace_mat_op() {
 }
 
 int main() {
-  test_lin_tr_inplace_mat_op<ml::buffer_data_type>();
-  test_tr_lin_inplace_mat_op<ml::buffer_data_type>();
+  try {
+    test_lin_tr_inplace_mat_op<ml::buffer_data_type>();
+    test_tr_lin_inplace_mat_op<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

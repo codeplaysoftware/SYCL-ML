@@ -13,7 +13,11 @@ int main(int argc, char** argv) {
   pca_args.min_nb_vecs = 64;    // Keep at least 64 basis vector
   pca_args.keep_percent = 0.8;  // Keep at least 80% of information
   pca_args.scale_factor = 1E2;  // More accurate but slower PCA
-  run_classifier<ml::bayes_classifier<distribution_t, uint8_t>>(mnist_path, pca_args);
+  try {
+    run_classifier<ml::bayes_classifier<distribution_t, uint8_t>>(mnist_path, pca_args);
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

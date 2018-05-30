@@ -130,9 +130,13 @@ void test_optimized_qr() {
 }
 
 int main(void) {
-  test_qr<ml::buffer_data_type>();
-  test_qr_square<ml::buffer_data_type>();
-  test_optimized_qr<ml::buffer_data_type>();
+  try {
+    test_qr<ml::buffer_data_type>();
+    test_qr_square<ml::buffer_data_type>();
+    test_optimized_qr<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

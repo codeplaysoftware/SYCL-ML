@@ -51,8 +51,12 @@ void test_inner_product_other() {
 }
 
 int main() {
-  test_inner_product_self<ml::buffer_data_type>();
-  test_inner_product_other<ml::buffer_data_type>();
+  try {
+    test_inner_product_self<ml::buffer_data_type>();
+    test_inner_product_other<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

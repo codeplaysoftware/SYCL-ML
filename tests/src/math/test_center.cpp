@@ -47,7 +47,11 @@ void test_center() {
 }
 
 int main() {
-  test_center<ml::buffer_data_type, ml::ROW>();
+  try {
+    test_center<ml::buffer_data_type, ml::ROW>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

@@ -70,8 +70,12 @@ void test_cov_general() {
 }
 
 int main(void) {
-  test_cov_square<ml::buffer_data_type, ml::COL>();
-  test_cov_general<ml::buffer_data_type, ml::ROW>();
+  try {
+    test_cov_square<ml::buffer_data_type, ml::COL>();
+    test_cov_general<ml::buffer_data_type, ml::ROW>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

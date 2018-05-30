@@ -77,7 +77,11 @@ void test_svd_general() {
 }
 
 int main(void) {
-  test_svd_general<ml::buffer_data_type, ml::LIN>();
+  try {
+    test_svd_general<ml::buffer_data_type, ml::LIN>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

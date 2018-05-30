@@ -174,8 +174,12 @@ void test_tri_inv_big() {
 }
 
 int main(void) {
-  test_inv<ml::buffer_data_type>();
-  test_tri_inv<ml::buffer_data_type>();
+  try {
+    test_inv<ml::buffer_data_type>();
+    test_tri_inv<ml::buffer_data_type>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

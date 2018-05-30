@@ -42,7 +42,11 @@ void test_svm_or() {
 }
 
 int main() {
-  test_svm_or<ml::buffer_data_type, uint8_t>();
+  try {
+    test_svm_or<ml::buffer_data_type, uint8_t>();
+  } catch (cl::sycl::exception e) {
+    std::cerr << e.what();
+  }
 
   return 0;
 }

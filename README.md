@@ -29,6 +29,7 @@ More details on what the project implements and how it works can be found on [ou
 - Optimize **SVM** for GPU. More recent papers on SVM for GPU should be experimented.
 - Implement an **LDA** (or dimensionality reduction algorithms) which would be used as a preprocessing step similarly to a PCA.
 - Implement a **K-means** (or other clustering algorithms) which could be used to improve the initialization of the EM.
+- Add a proper way to select a SYCL device.
 
 ## Prerequisites
 SYCL-ML has been tested with:

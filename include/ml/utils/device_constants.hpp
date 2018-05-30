@@ -1,6 +1,9 @@
 #ifndef INCLUDE_ML_UTILS_DEVICE_CONSTANTS_HPP
 #define INCLUDE_ML_UTILS_DEVICE_CONSTANTS_HPP
 
+#include <iostream>
+#include <string>
+
 #include "ml/utils/sycl_types.hpp"
 
 namespace ml
@@ -19,11 +22,19 @@ class device_constants {
 public:
   static device_constants<Void>* instance;
 
-  device_constants() : _eigen_queue(gpu_selector()), _eigen_device(&_eigen_queue) {
+  device_constants() : _eigen_queue(default_selector()), _eigen_device(&_eigen_queue) {
     const cl::sycl::device& sycl_device = _eigen_queue.sycl_queue().get_device();
-    MAX_WORK_GROUP_SIZE = sycl_device.get_info<cl::sycl::info::device::max_work_group_size>();
-    MEM_BASE_ADDR_ALIGN = sycl_device.get_info<cl::sycl::info::device::mem_base_addr_align>();
-    MAX_WORK_ITEM_SIZES = sycl_device.get_info<cl::sycl::info::device::max_work_item_sizes>();
+    const cl::sycl::platform& platform = sycl_device.get_platform();
+    using namespace cl::sycl::info;
+    std::cout << "Selected device: " << sycl_device.get_info<info::device::name>() << ", ";
+    std::cout << "type: " << device_type_to_str(sycl_device.get_info<info::device::device_type>()) << ", ";
+    std::cout << "platform: " << platform.get_info<info::platform::name>();
+    std::cout << " [" << platform.get_info<info::platform::vendor>() << "]\n";
+    std::cout << std::endl;
+
+    MAX_WORK_GROUP_SIZE = sycl_device.get_info<info::device::max_work_group_size>();
+    MEM_BASE_ADDR_ALIGN = sycl_device.get_info<info::device::mem_base_addr_align>();
+    MAX_WORK_ITEM_SIZES = sycl_device.get_info<info::device::max_work_item_sizes>();
   }
 
   inline size_t get_max_work_group_size() { return MAX_WORK_GROUP_SIZE; }
@@ -60,6 +71,26 @@ private:
 
   Eigen::QueueInterface _eigen_queue;
   Eigen::SyclDevice _eigen_device;
+
+  inline std::string device_type_to_str(cl::sycl::info::device_type type) {
+    using namespace cl::sycl::info;
+    switch (type) {
+      case info::device_type::cpu:
+        return "CPU";
+      case info::device_type::gpu:
+        return "GPU";
+      case info::device_type::accelerator:
+        return "accelerator";
+      case info::device_type::custom:
+        return "custom";
+      case info::device_type::automatic:
+        return "automatic";
+      case info::device_type::host:
+        return "host";
+      default:
+        return "NONE";
+    }
+  }
 };
 
 template <>

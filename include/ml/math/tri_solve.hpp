@@ -38,7 +38,7 @@ void div_row(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx, const
     auto a_acc = A.template get_access_2d<access::mode::read>(cgh); // Don't need DA because we only access the diagonal
     auto x_acc = X.template get_access_2d<access::mode::read_write, DX>(cgh);
     cgh.parallel_for<NameGen<DX, ml_mat_tri_solve_div_row, T>>(col_ker_rng, [=](nd_item<1> item) {
-      auto col = item.get_global(0);
+      auto col = item.get_global_id(0);
       x_acc(row_idx, col) /= a_acc(row_idx, row_idx);
     });
   });
@@ -51,8 +51,8 @@ void compute_x(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx) {
     auto a_acc = A.template get_access_2d<access::mode::read, DA>(cgh);
     auto x_acc = X.template get_access_2d<access::mode::read_write, DX>(cgh);
     cgh.parallel_for<NameGen<0, ml_mat_tri_solve<DA, DX>, T>>(X.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(DX);
-      auto col = item.get_global(opp<DX>());
+      auto row = item.get_global_id(DX);
+      auto col = item.get_global_id(opp<DX>());
       if (apply_subtract_condition(row, row_idx))
         x_acc(row, col) -= x_acc(row_idx, col) * a_acc(row, row_idx);
     });

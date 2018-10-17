@@ -21,8 +21,8 @@ void eye(queue& q, matrix_t<T>& mat) {
   q.submit([&](handler& cgh) {
     auto mat_acc = mat.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_eye, T>>(mat.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       mat_acc(row, col) = row == col;
     });
   });
@@ -48,8 +48,8 @@ void transpose(queue& q, matrix_t<T>& in, matrix_t<T>& out) {
     auto in_acc = in.template get_access_2d<access::mode::read>(cgh);
     auto out_acc = out.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_transpose, T>>(in.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       out_acc(col, row) = in_acc(row, col);
     });
   });
@@ -80,8 +80,8 @@ void mat_inplace_binary_op(queue& q, matrix_t<T>& in_out1, matrix_t<T>& in2, Bin
     auto in2_acc = in2.template get_access_2d<access::mode::read, D2>(cgh);
     cgh.parallel_for<NameGen<0, ml_mat_inplace_binary_op<D1, D2>, T, BinaryOp>>(in_out1.template get_nd_range<D1>(),
                                                                                 [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       in_out1_acc(row, col) = op(in_out1_acc(row, col), in2_acc(row, col));
     });
   });
@@ -100,7 +100,7 @@ void avg(queue&, matrix_t<T>& dataset, vector_t<T>& avg) {
   auto eig_dataset = sycl_to_eigen(dataset);
   auto eig_avg = sycl_to_eigen(avg);
 
-  static constexpr std::array<eig_index_t, 1> dims { D };
+  static const std::array<eig_index_t, 1> dims { D };
   eig_avg.device() = eig_dataset.tensor().sum(dims) / static_cast<T>(access_data_dim<D>(dataset, 0));
 }
 
@@ -129,8 +129,8 @@ void mat_vec_apply_op(queue& q, matrix_t<T>& in, matrix_t<T>& out, vector_t<T>& 
     auto out_acc = out.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op, T, BinaryOp>>(out.get_nd_range(),
                                                                     [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       out_acc(row, col) = op(in_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
     });
   });
@@ -159,8 +159,8 @@ inline void mat_vec_apply_op(queue& q, matrix_t<T>& in_out, vector_t<T>& vec, Bi
     auto in_out_acc = in_out.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<D, ml_mat_vec_inplace_binary_op, T, BinaryOp>>(in_out.get_nd_range(),
                                                                             [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       in_out_acc(row, col) = op(in_out_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
     });
   });
@@ -191,8 +191,8 @@ void mat_vec_apply_op_data_rng(queue& q, matrix_t<T>& in_out, vector_t<T>& vec, 
     auto mat_acc = in_out.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op_data_rng, T, BinaryOp>>(in_out.get_nd_range(),
                                                                              [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       if (row < data_dim_0 && col < data_dim_1)
         mat_acc(row, col) = op(mat_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
     });

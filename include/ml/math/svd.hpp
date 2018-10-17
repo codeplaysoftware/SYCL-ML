@@ -35,8 +35,8 @@ void deflate(queue& q, matrix_t<T>& data, vector_t<T>& act_U_col, vector_t<T>& a
     auto u_acc = act_V_row.template get_access_1d<access::mode::read>(cgh);
     auto data_acc = data.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_svd_deflate, T>>(data.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       data_acc(row, col) -= act_eig_val * v_acc(row) * u_acc(col);
     });
   });

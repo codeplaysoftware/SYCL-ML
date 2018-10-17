@@ -32,8 +32,8 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv, matrix_t<T>& t_buffer
   assert(&inv != &t_pow_buffer);
   assert(&t_buffer != &t_pow_buffer);
 
-  auto data_dim_2_rng = tri.kernel_range.get_global();
-  assert_eq(data_dim_1_nd_rng.get_global_range(0), data_dim_2_rng[0]);
+  auto data_dim_2_rng = tri.kernel_range.get_global_range();
+  assert_eq(data_dim_1_nd_rng.get_global_range()[0], data_dim_2_rng[0]);
   assert_rng_square(data_dim_2_rng);
   auto data_dim = data_dim_2_rng[0];
   using IndexT = decltype(data_dim);
@@ -48,8 +48,8 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv, matrix_t<T>& t_buffer
     auto t_pow_acc = t_pow_buffer.template get_access_2d<access::mode::discard_write>(cgh);
     auto inv_acc = inv.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_try_inv, T>>(tri.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       T val = (col > row) ? (-tri_acc(row, col) / tri_acc(row, row)) : 0;
       t_acc(row, col) = val;
       t_pow_acc(row, col) = val;
@@ -64,8 +64,8 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv, matrix_t<T>& t_buffer
       auto t_acc = t_buffer.template get_access_2d<access::mode::read>(cgh);
       auto inv_acc = inv.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<2, ml_try_inv, T>>(tri.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         if (row < data_dim - i && col < data_dim - i && col >= row) {
           auto diag_idx = col - row;
           col += i;
@@ -83,8 +83,8 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv, matrix_t<T>& t_buffer
     q.submit([&](handler& cgh) {
       auto t_pow_acc = t_pow_buffer.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<3, ml_try_inv, T>>(tri.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         if (row < data_dim - i && col < data_dim - i && col >= row) {
           col += i;
           t_pow_acc(row, col) = t_pow_acc(col, row);
@@ -97,8 +97,8 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv, matrix_t<T>& t_buffer
     auto tri_acc = tri.template get_access_2d<access::mode::read>(cgh);
     auto inv_acc = inv.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<4, ml_try_inv, T>>(tri.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       inv_acc(row, col) /= tri_acc(col, col);
     });
   });

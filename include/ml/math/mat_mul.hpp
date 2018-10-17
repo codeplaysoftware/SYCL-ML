@@ -76,8 +76,8 @@ void simple_mat_mul(queue& q, matrix_t<T>& m1, matrix_t<T>& m2, matrix_t<T>& m3)
     auto m3_acc = m3.template get_access_2d<access::mode::discard_write>(cgh);
 
     cgh.parallel_for<NameGen<0, ml_simple_mat_mul<D1, D2>, T>>(m3.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       T sum{0};
       for (SYCLIndexT i = 0; i < k; ++i) {
         sum += m1_acc(row, i) * m2_acc(i, col);
@@ -115,7 +115,7 @@ void simple_mat_mul_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, vector_
     auto out_acc = out.template get_access_1d<access::mode::discard_write>(cgh);
 
     cgh.parallel_for<NameGen<D, ml_simple_mat_mul_vec, T>>(out.get_nd_range(), [=](nd_item<1> item) {
-      auto row = item.get_global(0);
+      auto row = item.get_global_id(0);
       T sum{0};
       for (size_t i = 0; i < k; ++i) {
         sum += mat_acc(row, i) * vec_acc(i);

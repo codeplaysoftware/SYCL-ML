@@ -28,8 +28,8 @@ void add_weights(queue& q, matrix_t<T>& plx, vector_t<T>& weights) {
     auto w_acc = weights.template get_access_1d<access::mode::read>(cgh);
     auto plx_acc = plx.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_em_add_weights, T>>(plx.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       plx_acc(row, col) += cl::sycl::log(w_acc(row));
     });
   });

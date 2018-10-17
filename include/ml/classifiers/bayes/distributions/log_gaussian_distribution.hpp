@@ -75,8 +75,8 @@ public:
       auto old_r_acc = data.template get_access_2d<access::mode::read>(cgh);
       auto new_r_acc = act_r.template get_access_2d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_gd_normalize_r, T>>(act_r.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         new_r_acc(row, col) = (col >= row) ? old_r_acc(row, col) * factor : 0;
       });
     });
@@ -168,8 +168,8 @@ private:
       auto plx_acc = plx_k.template get_access_1d<access::mode::read>(cgh);
       auto plx_data_acc = plx_data.template get_access_2d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_gd_get_plx_data, T, Op>>(plx_data.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         plx_data_acc(row, col) = data_acc(row, col) * op(plx_acc(row));
       });
     });
@@ -209,8 +209,8 @@ private:
     q.submit([&](handler& cgh) {
       auto act_r_acc = act_r.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_gd_normalize_random_r, T>>(act_r.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         auto& act_rc = act_r_acc(row, col);
         if (row > col)
           act_rc = 0;

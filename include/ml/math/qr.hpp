@@ -93,9 +93,9 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
     nb_rows_ker = m - j;
     if (nb_rows_ker % 2 == 0) {
       bool nb_rows_ker_is_pow2 = is_pow2(nb_rows_ker);
-      if (nb_rows_ker_is_pow2 || !is_pow2(w_rng.get_global()[0]))
+      if (nb_rows_ker_is_pow2 || !is_pow2(w_rng.get_global_range()[0]))
         w_rng = get_optimal_nd_range(nb_rows_ker);
-      if (nb_rows_ker_is_pow2 || !is_pow2(mat_rng.get_global()[0]))
+      if (nb_rows_ker_is_pow2 || !is_pow2(mat_rng.get_global_range()[0]))
         mat_rng = get_optimal_nd_range(nb_rows_ker, access_ker_dim(mat, 1));
     }
 
@@ -104,7 +104,7 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
       auto mat_acc = mat.template get_access_2d<access::mode::read_write>(cgh);
       auto w_acc = w.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_qr, T>>(w_rng, [=](nd_item<1> item) {
-        auto row = item.get_global(0) + 1;
+        auto row = item.get_global_id(0) + 1;
         if (row < nb_rows_ker) {
           auto val = mat_acc(row + j, j) / act_u1;
           mat_acc(row + j, j) = val;
@@ -132,8 +132,8 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
       auto w_acc = w.template get_access_1d<access::mode::read>(cgh);
       auto mat_acc = mat.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<1, ml_qr, T>>(mat_rng, [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         if (row < m - j && col < n - j - 1)
           mat_acc(j + row, j + 1 + col) -= (act_tau * w_acc(row)) * vec_acc(col);
       });

@@ -73,7 +73,7 @@ std::ostream& operator<<(std::ostream& os, const cl::sycl::range<DIM>& r) {
  */
 template <int DIM>
 std::ostream& operator<<(std::ostream& os, const cl::sycl::nd_range<DIM>& r) {
-  return os << r.get_global() << "@" << r.get_local() << "@" << r.get_offset();
+  return os << r.get_global_range() << "@" << r.get_local_range() << "@" << r.get_offset();
 }
 
 /**

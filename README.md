@@ -36,7 +36,7 @@ SYCL-ML has been tested with:
 - Ubuntu 16.04.3, kernel 4.13.0-26, amdgpu pro driver 17.40  OR  Ubuntu 14.04.5, kernel 3.19.0-79, fglrx driver 2:15.302
 - CMake 3.0
 - g++ 5.4
-- ComputeCpp 0.8.0
+- ComputeCpp 1.0.1
 
 ComputeCpp can be downloaded from the [CodePlay](https://www.codeplay.com/products/computesuite/computecpp) website.
 Once extracted, ComputeCpp path should be set as an environment variable to `COMPUTECPP_PACKAGE_ROOT_DIR` (usually */usr/local/computecpp*).
@@ -48,13 +48,12 @@ SYCLParallelSTL's path must be set to `SYCL_PARALLEL_STL_ROOT` either as an envi
 git clone https://github.com/KhronosGroup/SyclParallelSTL.git
 ```
 
-The last requirement is the Eigen-Optimised-Tensor-Vector-Contraction branch of [Eigen](https://bitbucket.org/mehdi_goli/opencl).
+The last requirement is the Eigen-Optimised-Tensor-Vector-Contraction branch of [Eigen](https://bitbucket.org/codeplaysoftware/eigen).
 Eigen's path must be set to `EIGEN_INCLUDE_DIRS` either as an environment variable or as an argument to cmake.
 The version of Eigen needed is slightly different than the upstream.
 The changes are packed in the `eigen.patch` file which the next section shows how to apply.
 ```bash
-hg clone https://bitbucket.org/mehdi_goli/opencl
-hg up Eigen-SYCL-OpenCL
+hg clone https://bitbucket.org/codeplaysoftware/eigen
 ```
 
 ## Building

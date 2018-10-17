@@ -35,7 +35,7 @@ class buffer_3d_acc_t;
 // Specialize get_1d_kernel_nd_range
 template <int DIM>
 inline nd_range<1> get_1d_kernel_nd_range(const nd_range<DIM>& nd_rng) {
-  return get_optimal_nd_range(nd_rng.get_global().size());
+  return get_optimal_nd_range(nd_rng.get_global_range().size());
 }
 
 template <>
@@ -49,8 +49,8 @@ inline nd_range<DIM> get_nd_range(const nd_range<DIM>& kernel_range) {
 
 template <>
 inline nd_range<2> get_nd_range<TR>(const nd_range<2>& kernel_range) {
-  return nd_range<2>(build_lin_or_tr<TR>(kernel_range.get_global()),
-                     build_lin_or_tr<TR>(kernel_range.get_local()),
+  return nd_range<2>(build_lin_or_tr<TR>(kernel_range.get_global_range()),
+                     build_lin_or_tr<TR>(kernel_range.get_local_range()),
                      build_lin_or_tr<TR>(kernel_range.get_offset()));
 }
 
@@ -71,15 +71,15 @@ class buffer_t : public sycl_vec_t<T> {
 public:
   buffer_t(const sycl_vec_t<T>& b, const range<DIM>& d, const nd_range<DIM>& k) :
       sycl_vec_t<T>(b), data_range(d), kernel_range(k) {
-    assert_rng_less_or_eq(data_range, kernel_range.get_global());
-    assert_rng_size_less_or_eq(kernel_range.get_global(), b.get_count());
+    assert_rng_less_or_eq(data_range, kernel_range.get_global_range());
+    assert_rng_size_less_or_eq(kernel_range.get_global_range(), b.get_count());
   }
 
   buffer_t(const sycl_vec_t<T>& b, const range<DIM>& r) : buffer_t(b, r, get_optimal_nd_range(r)) {}
   buffer_t(const sycl_vec_t<T>& b) : buffer_t(b, b.get_range()) {}
 
   buffer_t(const range<DIM>& r, const nd_range<DIM>& k) :
-      buffer_t(sycl_vec_t<T>(range<1>(k.get_global().size())), r, k) {
+      buffer_t(sycl_vec_t<T>(range<1>(k.get_global_range().size())), r, k) {
 #if ML_DEBUG_BOUND_CHECK
     if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
       T init = std::numeric_limits<T>::quiet_NaN();
@@ -88,7 +88,7 @@ public:
 #endif
   }
 
-  buffer_t(const nd_range<DIM>& k) : buffer_t(k.get_global(), k) {}
+  buffer_t(const nd_range<DIM>& k) : buffer_t(k.get_global_range(), k) {}
   buffer_t(const range<DIM>& r) : buffer_t(get_optimal_nd_range(r)) {}
 
   template <class HostPtrT>
@@ -126,7 +126,7 @@ public:
    */
   template <int OUT_DIM>
   inline buffer_t<T, OUT_DIM> get_sub_buffer(const id<OUT_DIM>& offset, const nd_range<OUT_DIM>& kernel_range) {
-    return get_sub_buffer(offset, kernel_range.get_global(), kernel_range);
+    return get_sub_buffer(offset, kernel_range.get_global_range(), kernel_range);
   }
 
   /**
@@ -175,7 +175,7 @@ public:
   // Getters
   inline SYCLIndexT data_dim_size() const { return data_range.size(); }
 
-  inline range<DIM> get_kernel_range() const { return kernel_range.get_global(); }
+  inline range<DIM> get_kernel_range() const { return kernel_range.get_global_range(); }
 
   inline nd_range<1> get_1d_kernel_nd_range() const {
     return detail::get_1d_kernel_nd_range(kernel_range);
@@ -318,7 +318,7 @@ void copy_vec_to_mat(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, SYCLIndexT
     auto matrix_acc = matrix.template get_access_2d<access::mode::discard_write, D>(cgh);
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
     cgh.parallel_for<NameGen<D, ml_copy_vec_to_mat, T>>(vec.get_nd_range(), [=](nd_item<1> item) {
-      auto id = item.get_global(0);
+      auto id = item.get_global_id(0);
       matrix_acc(row_col, id) = vec_acc(id);
     });
   });
@@ -345,7 +345,7 @@ void copy_mat_to_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, SYCLIndexT
     auto matrix_acc = matrix.template get_access_2d<access::mode::read, D>(cgh);
     auto vec_acc = vec.template get_access_1d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<D, ml_copy_mat_to_vec, T>>(vec.get_nd_range(), [=](nd_item<1> item) {
-      auto id = item.get_global(0);
+      auto id = item.get_global_id(0);
       vec_acc(id) = matrix_acc(row_col, id);
     });
   });
@@ -373,8 +373,8 @@ matrix_t<DataT> split_by_index(queue& q, matrix_t<DataT>& buffer, vector_t<Index
     auto buffer_acc = buffer.template get_access_2d<access::mode::read>(cgh);
     auto split_buffer_acc = split_buffer.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<2, ml_split_by_index, DataT, IndexT>>(split_buffer.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       split_buffer_acc(row, col) = buffer_acc(indices_acc(row), col);
     });
   });
@@ -401,7 +401,7 @@ vector_t<DataT> split_by_index(queue& q, vector_t<DataT>& buffer, vector_t<Index
     auto buffer_acc = buffer.template get_access_1d<access::mode::read>(cgh);
     auto split_buffer_acc = split_buffer.template get_access_1d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<1, ml_split_by_index, DataT, IndexT>>(split_buffer.get_nd_range(), [=](nd_item<1> item) {
-      auto row = item.get_global(0);
+      auto row = item.get_global_id(0);
       split_buffer_acc(row) = buffer_acc(indices_acc(row));
     });
   });

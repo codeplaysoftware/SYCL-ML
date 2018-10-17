@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.4.3)
 project(SYCL-ML)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -9,11 +9,10 @@ if (MSVC)
 endif()
 
 # Include ComputeCpp
-if(NOT COMPUTECPP_PACKAGE_ROOT_DIR AND EXISTS $ENV{COMPUTECPP_PACKAGE_ROOT_DIR})
-  set(COMPUTECPP_PACKAGE_ROOT_DIR $ENV{COMPUTECPP_PACKAGE_ROOT_DIR})
-endif()
-set(COMPUTECPP_FORCE_INCLUDE_SYCL_FILE OFF CACHE BOOL "Include SYCL file manually" FORCE)
 include(FindComputeCpp)
+include_directories(SYSTEM ${COMPUTECPP_INCLUDE_DIRECTORY})
+# Enable this later
+#list(APPEND COMPUTECPP_USER_FLAGS -fsycl-split-modules=20)
 
 # Set compile options for host and device compilers
 set(CMAKE_CXX_STANDARD 14)
@@ -50,8 +49,6 @@ if(EIGEN_INCLUDE_DIRS)
 else()
   message(FATAL_ERROR "Please set EIGEN_INCLUDE_DIRS")
 endif()
-add_compile_options(-DDISABLE_SKINNY=1)
-list(APPEND COMPUTECPP_USER_FLAGS -DDISABLE_SKINNY=1)
 
 # Include SyclParallelSTL
 if(NOT SYCL_PARALLEL_STL_ROOT AND EXISTS $ENV{SYCL_PARALLEL_STL_ROOT})

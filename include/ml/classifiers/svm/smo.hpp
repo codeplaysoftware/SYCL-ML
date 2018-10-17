@@ -33,7 +33,7 @@ void compute_obj_values(queue& q, SYCLIndexT i, T g_max, T eps, vector_t<T>& gra
     auto ker_i_t_acc = ker_i_t.template get_access_1d<access::mode::read>(cgh);
     auto obj_values_acc = obj_values.template get_access_1d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_smo_compute_obj_values, T>>(obj_values.get_nd_range(), [=](nd_item<1> item) {
-      auto t = item.get_global(0);
+      auto t = item.get_global_id(0);
       auto b = g_max - g_acc(t);
       auto a = ker_diag_acc(i) + ker_diag_acc(t) - 2 * ker_i_t_acc(t);
       obj_values_acc(t) = (b > 0 && a > eps) ? -b * b / a : 0;
@@ -101,7 +101,7 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient, vecto
     auto in_indices_acc = in_indices.template get_access_1d<access::mode::read>(cgh);
     auto out_indices_acc = out_indices.template get_access_1d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_smo_find_extremum_idx, T, Compare>>(search_rng, [=](nd_item<1> item) {
-      auto idx = item.get_global(0);
+      auto idx = item.get_global_id(0);
       auto i = in_indices_acc(2 * idx);
       auto j = in_indices_acc(2 * idx + 1);
       // If both conditions are true, use comp to select which index to return
@@ -217,7 +217,7 @@ void update_gradient(queue& q, T delta_ai, T delta_aj, vector_t<T>& ker_i_t, vec
     auto ker_j_t_acc = ker_j_t.template get_access_1d<access::mode::read>(cgh);
     auto g_acc = gradient.template get_access_1d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_smo_update_gradient, T>>(gradient.get_nd_range(), [=](nd_item<1> item) {
-      auto t = item.get_global(0);
+      auto t = item.get_global_id(0);
       g_acc(t) += -ker_i_t_acc(t) * delta_ai - ker_j_t_acc(t) * delta_aj;
     });
   });
@@ -245,7 +245,7 @@ void copy_alphas(queue& q, vector_t<T>& alphas, vector_t<T>& y, vector_t<IndexT>
     auto sv_idx_acc = sv_indices.template get_access_1d<access::mode::read>(cgh);
     auto new_a_acc = sv_alphas.template get_access_1d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_smo_copy_alphas, T, IndexT>>(sv_alphas.get_nd_range(), [=](nd_item<1> item) {
-      auto row = item.get_global(0);
+      auto row = item.get_global_id(0);
       auto sv_idx = sv_idx_acc(row);
       new_a_acc(row) = y_acc(sv_idx) * old_a_acc(sv_idx);
     });

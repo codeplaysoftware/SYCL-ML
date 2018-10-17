@@ -75,7 +75,7 @@ public:
       auto label_idx_to_user_acc = this->_label_idx_to_label_user.template get_access_1d<access::mode::read>(cgh);
       auto predicted_labels_acc = predicted_labels.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenED<0>>(predicted_labels.get_nd_range(), [=](nd_item<1> item) {
-        auto col = item.get_global(0);
+        auto col = item.get_global_id(0);
         auto extremum_index = 0;
         auto extremum_dist = dist_acc(extremum_index, col);
         for (unsigned i = 1; i < nb_labels; ++i) { // Loop is small enough

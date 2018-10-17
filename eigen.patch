@@ -1,7 +1,7 @@
 diff -r d241b80712dc unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h
 --- a/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Fri Mar 09 11:31:25 2018 +0000
 +++ b/unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h	Fri Mar 16 13:36:09 2018 +0000
-@@ -27,7 +27,7 @@
+@@ -26,7 +26,7 @@
    #define ConvertToActualSyclOffset(Scalar, offset) (((offset) * sizeof(buffer_scalar_t)) / sizeof(Scalar))
  
  typedef cl::sycl::codeplay::buffer_data_type_t buffer_scalar_t;

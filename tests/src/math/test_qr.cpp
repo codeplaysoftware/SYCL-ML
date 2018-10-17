@@ -111,8 +111,8 @@ void test_optimized_qr() {
       auto old_r_acc = sycl_data.template get_access_2d<cl::sycl::access::mode::read>(cgh);
       auto new_r_acc = sycl_r.template get_access_2d<cl::sycl::access::mode::discard_write>(cgh);
       cgh.parallel_for<ml::NameGen<0, MLNormalizeR, T>>(sycl_r.get_nd_range(), [=](cl::sycl::nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         new_r_acc(row, col) = col >= row ? old_r_acc(row, col) * factor : 0;
       });
     });

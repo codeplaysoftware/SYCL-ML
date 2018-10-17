@@ -20,8 +20,8 @@ void copy_eigenvectors(queue& q, vector_t<SYCLIndexT>& sycl_indices, matrix_t<T>
     auto indices_acc = sycl_indices.template get_access_1d<access::mode::read>(cgh);
     auto out_acc = out_v.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_pca_svd_copy_v, T>>(out_v.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       out_acc(row, col) = in_acc(indices_acc(row), col);
     });
   });

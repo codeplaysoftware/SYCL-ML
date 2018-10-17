@@ -299,8 +299,8 @@ private:
       auto old_acc = old_data.template get_access_2d<access::mode::read>(cgh);
       auto new_acc = new_data.template get_access_2d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenSVM<0, ml_svm_pad_data>>(new_data.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         new_acc(row, col) = (row < nb_obs && col < obs_size) ? old_acc(row, col) : DataType(0);
       });
     });
@@ -324,7 +324,7 @@ private:
       auto user_acc = user_labels.template get_access_1d<access::mode::read>(cgh);
       auto internal_acc = internal_labels.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenSVM<0, ml_svm_get_internal_labels>>(internal_labels.get_nd_range(), [=](nd_item<1> item) {
-        auto row = item.get_global(0);
+        auto row = item.get_global_id(0);
         internal_acc(row) = (row < nb_user_labels) ? (user_acc(row) != minus_one_label) * 2 - 1 : InternalLabelType(0);
       });
     });
@@ -344,7 +344,7 @@ private:
     q.submit([&](handler& cgh) {
       auto internal_acc = internal_labels.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenSVM<0, ml_svm_create_internal_labels>>(internal_labels.get_nd_range(), [=](nd_item<1> item) {
-        auto row = item.get_global(0);
+        auto row = item.get_global_id(0);
         internal_acc(row) = row < nb_obs_i ? InternalLabelType(-1) :
                            (row < nb_obs_i + nb_obs_j ? InternalLabelType(1) : InternalLabelType(0));
       });
@@ -375,7 +375,7 @@ private:
       auto a_acc = smo_out.alphas.template get_access_1d<access::mode::read>(cgh);
       auto pred_acc = predictions.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenSVM<0, ml_svm_predict_binary>>(predictions.get_nd_range(), [=](nd_item<1> item) {
-        auto col = item.get_global(0);
+        auto col = item.get_global_id(0);
         DataType sum = rho;
         for (SYCLIndexT i = 0; i < nb_sv; ++i)  // Loop is (usually) small enough
           sum += a_acc(i) * ker_values_acc(i, col);
@@ -410,7 +410,7 @@ private:
       auto a_acc = smo_out.alphas.template get_access_1d<access::mode::read>(cgh);
       auto counter_acc = labels_counter.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGenSVM<0, ml_svm_predict>>(kernel_range, [=](nd_item<1> item) {
-        auto col = item.get_global(0);
+        auto col = item.get_global_id(0);
         DataType sum = rho;
         for (SYCLIndexT k = 0; k < nb_sv; ++k)  // Loop is (usually) small enough
           sum += a_acc(k) * ker_values_acc(k, col);
@@ -434,7 +434,7 @@ private:
       auto label_idx_to_label_user_acc = this->_label_idx_to_label_user.template get_access_1d<access::mode::read>(cgh);
       auto pred_acc = predictions.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGenSVM<1, ml_svm_predict>>(predictions.get_nd_range(), [=](nd_item<1> item) {
-        auto col = item.get_global(0);
+        auto col = item.get_global_id(0);
         SYCLIndexT max_idx = 0;
         for (SYCLIndexT i = 1; i < nb_labels; ++i) {  // Loop is small enough
           if (counter_acc(i, col) > counter_acc(max_idx, col))

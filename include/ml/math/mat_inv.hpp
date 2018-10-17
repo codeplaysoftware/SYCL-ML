@@ -36,9 +36,9 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
     auto mat_acc = mat.template get_access_2d<access::mode::read>(cgh);
     auto c_acc = c_buffer.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_mat_inv, T>>(c_buffer.get_nd_range(), [=](nd_item<2> item) {
-      auto global_nb_rows = item.get_global_range(0);
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto global_nb_rows = item.get_global_range()[0];
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       // Copy A if left part, set identity otherwise
       c_acc(row, col) = (col < global_nb_rows) ? mat_acc(row, col) : ((row + global_nb_rows) == col);
     });
@@ -51,8 +51,8 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
       auto c_acc = c_buffer.template get_access_2d<access::mode::read>(cgh);
       auto block_acc = block_buffer.template get_access_2d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGen<1, ml_mat_inv, T>>(block_buffer.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         int is_row_eq_r = row == r;
         // if row == r: C(i,j) = C(i,j) / C(r,r)
         // else:        C(i,j) = C(i,j) - (C(i,r) / C(r,r)) * C(r, j)
@@ -66,8 +66,8 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
       auto c_acc = c_buffer.template get_access_2d<access::mode::write>(cgh);
       auto block_acc = block_buffer.template get_access_2d<access::mode::read>(cgh);
       cgh.parallel_for<NameGen<2, ml_mat_inv, T>>(block_buffer.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global(0);
-        auto col = item.get_global(1);
+        auto row = item.get_global_id(0);
+        auto col = item.get_global_id(1);
         c_acc(row, col + r) = block_acc(row, col);
       });
     });
@@ -78,9 +78,9 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
     auto c_acc = c_buffer.template get_access_2d<access::mode::read>(cgh);
     auto inv_acc = inv.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<3, ml_mat_inv, T>>(inv.get_nd_range(), [=](nd_item<2> item) {
-      auto global_nb_rows = item.get_global_range(0);
-      auto row = item.get_global(0);
-      auto col = item.get_global(1);
+      auto global_nb_rows = item.get_global_range()[0];
+      auto row = item.get_global_id(0);
+      auto col = item.get_global_id(1);
       inv_acc(row, col) = c_acc(row, global_nb_rows + col);
     });
   });

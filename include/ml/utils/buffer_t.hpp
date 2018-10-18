@@ -111,8 +111,16 @@ public:
   template <int OUT_DIM>
   buffer_t<T, OUT_DIM> get_sub_buffer(const id<1>& offset, const range<OUT_DIM>& data_range,
                                       const nd_range<OUT_DIM>& kernel_range) {
-    return buffer_t<T, OUT_DIM>(sycl_vec_t<T>(*this, offset, range<1>(kernel_range.get_global_linear_range())),
-                                data_range, kernel_range);
+    //TODO: Use sub-buffer instead of copying
+    //auto sub_buf = sycl_vec_t<T>(*this, offset, range<1>(kernel_range.get_global_linear_range()));
+    auto size = cl::sycl::range<1>(kernel_range.get_global_linear_range());
+    auto sub_buf = sycl_vec_t<T>(size);
+    get_eigen_device().sycl_queue().submit([&](cl::sycl::handler &cgh) {
+      auto src_acc = this->template get_access<cl::sycl::access::mode::read>(cgh, size, offset);
+      auto dst_acc = sub_buf.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+      cgh.copy(src_acc, dst_acc);
+    });
+    return buffer_t<T, OUT_DIM>(sub_buf, data_range, kernel_range);
   }
 
   /**

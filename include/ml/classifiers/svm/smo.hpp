@@ -112,13 +112,7 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient, vecto
     });
   });
 
-  /*{
-    auto copy_ker_rng = get_optimal_nd_range(get_device_constants()->pad_sub_buffer_size<T>(search_size));
-    auto sub_in = in_indices.get_sub_buffer(id<1>(0), copy_ker_rng);
-    auto sub_out = out_indices.get_sub_buffer(id<1>(0), copy_ker_rng);
-    sycl_copy(q, sub_out, sub_in);
-  }*/
-  sycl_copy(q, out_indices, in_indices);  //TODO: fix copy with sub-buffers (above)
+  sycl_copy(q, out_indices, in_indices, 0, 0, search_size);
   return find_extremum_idx(q, cond, gradient, in_indices, out_indices, get_optimal_nd_range(search_size / 2),
                            size_threshold_host, comp, extremum_idx);
 }

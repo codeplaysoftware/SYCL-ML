@@ -88,6 +88,7 @@ public:
     std::cout << "Recall: " << recall * 100 << "%\n";
     std::cout << "F1-score: " << f1_score << "\n\n";
 
+    std::cout << "Confusion matrix:\n";
     char prev_fill = std::cout.fill(' ');
     for (unsigned i = 0; i < nb_labels; ++i) {
       for (unsigned j = 0; j < nb_labels; ++j) {

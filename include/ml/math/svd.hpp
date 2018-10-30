@@ -45,13 +45,14 @@ void deflate(queue& q, matrix_t<T>& data, vector_t<T>& act_U_col, vector_t<T>& a
 template <bool Enable>
 struct write_vec {
   template <data_dim D, class T>
-  static inline void apply(queue&, matrix_t<T>&, vector_t<T>&, SYCLIndexT) {}
+  static inline void apply(queue&, matrix_t<T>&, vector_t<T>&, const nd_range<1>&, SYCLIndexT) {}
 };
 
 template <>
 template <data_dim D, class T>
-inline void write_vec<true>::apply(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, SYCLIndexT row_col) {
-  copy_vec_to_mat<D>(q, matrix, vec, row_col);
+inline void write_vec<true>::apply(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                                   const nd_range<1>& nd_rng, SYCLIndexT row_col) {
+  copy_vec_to_mat<D, access::mode::discard_write>(q, matrix, vec, nd_rng, row_col);
 }
 
 template <bool Enable>
@@ -150,7 +151,7 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0, T epsilon = 1
 
   for (SYCLIndexT k = 0; k < nb_vec; ++k) {
     act_U_col.kernel_range = nd_nb_obs_range;
-    copy_mat_to_vec<COL>(q, data, act_U_col, k);
+    copy_mat_to_vec<COL, access::mode::discard_write>(q, data, act_U_col, act_U_col.get_nd_range(), k);
     act_U_col.kernel_range = nd_nb_obs_pow2_range;
 
     prev_l = 0;
@@ -221,9 +222,11 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0, T epsilon = 1
       sycl_copy(q, act_V_row, prev_V_row);
     }
     act_U_col.kernel_range = nd_nb_obs_range;
-    detail::write_vec<WriteU>::template apply<COL>(q, U, act_U_col, k);
+    detail::write_vec<WriteU>::template apply<COL>(q, U, act_U_col, nd_nb_obs_range, k);
     act_U_col.kernel_range = nd_nb_obs_pow2_range;
-    detail::write_vec<WriteV>::template apply<ROW>(q, V, act_V_row, k);
+    // L has as many rows as V does but is a vector so use its optimal_kernel_range(nb_vec) instead of
+    // recomputing it.
+    detail::write_vec<WriteV>::template apply<ROW>(q, V, act_V_row, L.get_nd_range(), k);
   }
 
   return out;

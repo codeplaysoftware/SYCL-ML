@@ -35,7 +35,8 @@ protected:
 
   virtual void train_for_each_label(queue& q, unsigned label_idx, matrix_t<DataT>& act_data) override {
     avg(q, act_data, _act_data_avg);
-    copy_vec_to_mat(q, _data_avg_per_label, _act_data_avg, static_cast<SYCLIndexT>(label_idx));
+    copy_vec_to_mat<ROW, access::mode::discard_write>(q, _data_avg_per_label, _act_data_avg,
+        _act_data_avg.get_kernel_range(), static_cast<SYCLIndexT>(label_idx));
   }
 
   virtual void compute_dist(queue&, matrix_t<DataT>& dataset, matrix_t<DataT>& dist) override {

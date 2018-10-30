@@ -50,6 +50,24 @@ void sycl_copy(queue& q, buffer<T, DIM>& src, buffer<T, DIM>& dst) {
 }
 
 /**
+ * @brief Copy a sub-buffer of \p src to a sub-buffer of \p dst.
+ */
+template <class T, int DIM>
+void sycl_copy(queue& q, buffer<T, DIM>& src, buffer<T, DIM>& dst,
+               size_t offset_src, size_t offset_dst, size_t count) {
+  assert_less_or_eq(offset_src + count, src.get_count());
+  assert_less_or_eq(offset_dst + count, dst.get_count());
+
+  q.submit([&](handler& cgh) {
+    auto src_acc = src.template get_access<access::mode::read>(cgh,
+        range<1>(count), id<1>(offset_src));
+    auto dst_acc = dst.template get_access<access::mode::discard_write>(cgh,
+        range<1>(count), id<1>(offset_dst));
+    cgh.copy(src_acc, dst_acc);
+  });
+}
+
+/**
  * @brief Copy a host buffer to device.
  */
 template <class T, class SrcPtrT>

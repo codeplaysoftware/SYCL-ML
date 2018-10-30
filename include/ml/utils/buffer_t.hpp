@@ -303,33 +303,95 @@ private:
   accessor<T, 1, acc_mode, acc_target> _acc;
 };
 
-} // detail
+template <data_dim D, access::mode write_mode, class T>
+struct copy_vec_to_mat_impl {
+  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                  const nd_range<1>& nd_rng, SYCLIndexT row) {
+    auto rng = nd_rng.get_global_range();
+    q.submit([&](handler& cgh) {
+      auto matrix_acc = matrix.template get_access<write_mode>(cgh,
+          rng, id<1>(row * matrix.get_kernel_range()[1]));
+      auto vec_acc = vec.template get_access<access::mode::read>(cgh, rng, id<1>(0));
+      cgh.copy(vec_acc, matrix_acc);
+    });
+  }
+};
 
 class ml_copy_vec_to_mat;
+
+template <access::mode write_mode, class T>
+struct copy_vec_to_mat_impl<COL, write_mode, T> {
+  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                  const nd_range<1>& nd_rng, SYCLIndexT col) {
+    q.submit([&](handler& cgh) {
+      auto matrix_acc = matrix.template get_access_2d<access::mode::write>(cgh);
+      auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
+      using ker_name = NameGen<static_cast<int>(write_mode), ml_copy_vec_to_mat, T>;
+      cgh.parallel_for<ker_name>(nd_rng, [=](nd_item<1> item) {
+        auto id = item.get_global_id(0);
+        matrix_acc(id, col) = vec_acc(id);
+      });
+    });
+  }
+};
+
+template <data_dim D, access::mode write_mode, class T>
+struct copy_mat_to_vec_impl {
+  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                  const nd_range<1>& nd_rng, SYCLIndexT row) {
+    auto rng = nd_rng.get_global_range();
+    q.submit([&](handler& cgh) {
+      auto matrix_acc = matrix.template get_access<access::mode::read>(cgh,
+          rng, id<1>(row * matrix.get_kernel_range()[1]));
+      auto vec_acc = vec.template get_access<write_mode>(cgh, rng, id<1>(0));
+      cgh.copy(matrix_acc, vec_acc);
+    });
+  }
+};
+
+class ml_copy_mat_to_vec;
+
+template <access::mode write_mode, class T>
+struct copy_mat_to_vec_impl<COL, write_mode, T> {
+  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                  const nd_range<1>& nd_rng, SYCLIndexT col) {
+    q.submit([&](handler& cgh) {
+      auto matrix_acc = matrix.template get_access_2d<access::mode::read>(cgh);
+      auto vec_acc = vec.template get_access_1d<write_mode>(cgh);
+      using ker_name = NameGen<static_cast<int>(write_mode), ml_copy_mat_to_vec, T>;
+      cgh.parallel_for<ker_name>(nd_rng, [=](nd_item<1> item) {
+        auto id = item.get_global_id(0);
+        vec_acc(id) = matrix_acc(id, col);
+      });
+    });
+  }
+};
+
+
+} // detail
+
 
 /**
  * @brief Copy a vector to a row (resp. a column) of a matrix.
  *
  * @tparam D row or col
  * @tparam T
+ * @tparam write_mode write by default, can be discard_write if copying the whole row
  * @param q
  * @param matrix destination buffer
  * @param vec source buffer
+ * @param nd_rng range to copy
  * @param row_col which row (resp. col) to copy
  */
-template <data_dim D = ROW, class T>
-void copy_vec_to_mat(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, SYCLIndexT row_col) {
+template <data_dim D = ROW, access::mode write_mode = access::mode::write, class T>
+void copy_vec_to_mat(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                     const nd_range<1>& nd_rng, SYCLIndexT row_col) {
+  static_assert(write_mode == access::mode::write || write_mode == access::mode::discard_write,
+                "Access mode must be either write or discard_write");
   assert_less_or_eq(row_col, access_ker_dim<D>(matrix, 0));
-  assert_less_or_eq(access_ker_dim<D>(matrix, 1), vec.get_kernel_range()[0]);
-
-  q.submit([&](handler& cgh) {
-    auto matrix_acc = matrix.template get_access_2d<access::mode::discard_write, D>(cgh);
-    auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
-    cgh.parallel_for<NameGen<D, ml_copy_vec_to_mat, T>>(vec.get_nd_range(), [=](nd_item<1> item) {
-      auto id = item.get_global_id(0);
-      matrix_acc(row_col, id) = vec_acc(id);
-    });
-  });
+  assert_less_or_eq(nd_rng.get_global_range()[0], access_ker_dim<D>(matrix, 1));
+  assert_less_or_eq(nd_rng.get_global_range()[0], vec.get_kernel_range()[0]);
+  detail::copy_vec_to_mat_impl<D, write_mode, T>()(q, matrix, vec, nd_rng, row_col);
 }
 
 class ml_copy_mat_to_vec;
@@ -339,24 +401,21 @@ class ml_copy_mat_to_vec;
  *
  * @tparam D row or col
  * @tparam T
+ * @tparam write_mode write by default, can be discard_write if copying the whole row
  * @param q
  * @param matrix destination buffer
  * @param vec source buffer
  * @param row_col which row (resp. col) to copy
  */
-template <data_dim D = ROW, class T>
-void copy_mat_to_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec, SYCLIndexT row_col) {
+template <data_dim D = ROW, access::mode write_mode = access::mode::write, class T>
+void copy_mat_to_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                     const nd_range<1>& nd_rng,  SYCLIndexT row_col) {
+  static_assert(write_mode == access::mode::write || write_mode == access::mode::discard_write,
+                "Access mode must be either write or discard_write");
   assert_less_or_eq(row_col, access_ker_dim<D>(matrix, 0));
-  assert_less_or_eq(vec.get_kernel_range()[0], access_ker_dim<D>(matrix, 1));
-
-  q.submit([&](handler& cgh) {
-    auto matrix_acc = matrix.template get_access_2d<access::mode::read, D>(cgh);
-    auto vec_acc = vec.template get_access_1d<access::mode::discard_write>(cgh);
-    cgh.parallel_for<NameGen<D, ml_copy_mat_to_vec, T>>(vec.get_nd_range(), [=](nd_item<1> item) {
-      auto id = item.get_global_id(0);
-      vec_acc(id) = matrix_acc(row_col, id);
-    });
-  });
+  assert_less_or_eq(nd_rng.get_global_range()[0], access_ker_dim<D>(matrix, 1));
+  assert_less_or_eq(nd_rng.get_global_range()[0], vec.get_kernel_range()[0]);
+  detail::copy_mat_to_vec_impl<D, write_mode, T>()(q, matrix, vec, nd_rng, row_col);
 }
 
 class ml_split_by_index;

@@ -120,8 +120,9 @@ inline constexpr B build_lin_or_tr(SYCLIndexT x1, SYCLIndexT x2) {
 template <data_dim D, class B>
 inline constexpr B build_lin_or_tr(const B& b) { return build_lin_or_tr<D, B>(b[0], b[1]); }
 
+//TODO(romain): Remove function if possible
 template <data_dim D1, data_dim D2>
-inline constexpr Eigen::array<eig_dim_pair_t, 1> get_contract_dim() { return { eig_dim_pair_t(D1, D2) }; }
+inline constexpr std::array<eig_dim_pair_t, 1> get_contract_dim() { return { eig_dim_pair_t(D1, D2) }; }
 
 } // ml
 

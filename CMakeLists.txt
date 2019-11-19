@@ -15,86 +15,112 @@
 cmake_minimum_required(VERSION 3.4.3)
 project(SYCL-ML)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-
-if (MSVC)
+if(MSVC)
   message(WARNING "Windows support is only experimental for now")
 endif()
 
-# Include ComputeCpp
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
+# Configuration options controlling automatic downloading of dependencies.
+option(SYCLML_DOWNLOAD_EIGEN "Download Eigen headers" ON)
+option(SYCLML_DOWNLOAD_SYCL_PARALLEL_STL "Download SyclParallelSTL headers" ON)
+option(SYCLML_DOWNLOAD_MISSING_DEPS
+  "Download any dependencies which cannot be found" ON)
+
+# Eigen configuration options.
+option(SYCLML_EIGEN_LOCAL_MEM
+  "Only compile the local memory versions of Eigen kernels" ON)
+option(SYCLML_EIGEN_NO_LOCAL_MEM
+  "Only compile the no local memory versions of Eigen kernels" OFF)
+option(SYCLML_EIGEN_COMPRESS_NAMES
+  "Compress Eigen SYCL kernel names" OFF)
+option(SYCLML_EIGEN_NO_BARRIER
+  "Use Eigen matmul which does not use barriers (implies NO_LOCAL_MEM)" OFF)
+
+# ComputeCpp configuration options.
 include(FindComputeCpp)
-include_directories(SYSTEM ${COMPUTECPP_INCLUDE_DIRECTORY})
-# Enable this later
-#list(APPEND COMPUTECPP_USER_FLAGS -fsycl-split-modules=20)
+# Avoid namespace ambiguities with older compilers
+list(APPEND COMPUTECPP_USER_FLAGS -DCOMPUTECPP_DISABLE_SYCL_NAMESPACE_ALIAS)
+option(SYCLML_COMPUTECPP_USE_SERIAL_MEMOP
+  "Replace memory operations (eg memset) in kernels with serial operations." OFF)
+if(NOT SYCLML_COMPUTECPP_USE_SERIAL_MEMOP)
+  list(APPEND COMPUTECPP_USER_FLAGS -no-serial-memop)
+endif()
+set(COMPUTECPP_DRIVER_DEFAULT_VALUE OFF)
+if (NOT MSVC)
+  set(COMPUTECPP_DRIVER_DEFAULT_VALUE ON)
+endif()
+option(SYCLML_COMPUTECPP_USE_COMPILER_DRIVER
+  "Use ComputeCpp driver instead of a 2 steps compilation"
+  ${COMPUTECPP_DRIVER_DEFAULT_VALUE}
+)
+if(SYCLML_COMPUTECPP_USE_COMPILER_DRIVER)
+  set(CMAKE_CXX_COMPILER ${ComputeCpp_DEVICE_COMPILER_EXECUTABLE})
+endif()
+option(SYCLML_COMPUTECPP_SPLIT_MODULES
+  "Split modules to speed up compilation." ON)
+if(NOT SYCLML_COMPUTECPP_SPLIT_MODULES)
+  list(APPEND COMPUTECPP_USER_FLAGS -fsycl-split-modules=20)
+endif()
+
+# Tests configuration
+option(SYCLML_TEST_DOUBLE "Add tests using double type." OFF)
 
 # Set compile options for host and device compilers
 set(CMAKE_CXX_STANDARD 14)
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "RELEASE") # Default to release
-endif()
-string(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE)
-if(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-  set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -DDEBUG")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
-  set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
-endif()
-add_compile_options(-Wall)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  add_compile_options(-Wextra -pedantic)
-endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(CheckCXXCompilerFlag)
+foreach(flag -Wall -Wextra -Wpedantic)
+  check_cxx_compiler_flag(${flag} is_flag_supported)
+  if(is_flag_supported)
+    add_compile_options(${flag})
+  endif()
+endforeach()
 if(MSVC)
   add_compile_options(/bigobj)
 endif()
 
-execute_process(COMMAND arch OUTPUT_VARIABLE ARCH ERROR_QUIET)
-if(NOT ARCH MATCHES ".*aarch.*")
-  list(APPEND COMPUTECPP_USER_FLAGS -no-serial-memop)
-endif()
-
-# Include Eigen
-if(NOT EIGEN_INCLUDE_DIRS AND EXISTS $ENV{EIGEN_INCLUDE_DIRS})
-  set(EIGEN_INCLUDE_DIRS $ENV{EIGEN_INCLUDE_DIRS})
-endif()
-if(EIGEN_INCLUDE_DIRS)
-  include_directories(SYSTEM ${EIGEN_INCLUDE_DIRS})
-  list(APPEND COMPUTECPP_USER_FLAGS -isystem ${EIGEN_INCLUDE_DIRS})
-  message(STATUS "Found Eigen: " ${EIGEN_INCLUDE_DIRS})
-else()
-  message(FATAL_ERROR "Please set EIGEN_INCLUDE_DIRS")
-endif()
-
-# Include SyclParallelSTL
-if(NOT SYCL_PARALLEL_STL_ROOT AND EXISTS $ENV{SYCL_PARALLEL_STL_ROOT})
-  set(SYCL_PARALLEL_STL_ROOT $ENV{SYCL_PARALLEL_STL_ROOT})
-endif()
-if(SYCL_PARALLEL_STL_ROOT)
-  include_directories(SYSTEM ${SYCL_PARALLEL_STL_ROOT}/include)
-  list(APPEND COMPUTECPP_USER_FLAGS -isystem ${SYCL_PARALLEL_STL_ROOT}/include)
-  message(STATUS "Found SYCLParallelSTL: " ${SYCL_PARALLEL_STL_ROOT}/include)
-else()
-  message(FATAL_ERROR "Please set SYCL_PARALLEL_STL_ROOT")
-endif()
+include(HandleEigen)
+include(HandleSyclParallelSTL)
 
 # Include SYCL-ML
 include_directories(${CMAKE_SOURCE_DIR}/include)
+add_library(sycl_ml INTERFACE)
+target_include_directories(sycl_ml INTERFACE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+)
+target_link_libraries(sycl_ml INTERFACE
+  ComputeCpp::ComputeCpp
+  Eigen
+  SyclParallelSTL
+)
 
-# Get the target name and the directory used to generate the sycl file
-function(process_source_name SOURCE)
+function(add_sycl_ml_executable SOURCE)
   get_filename_component(SOURCE_NAME_WE ${SOURCE} NAME_WE)
   get_filename_component(DIR ${SOURCE} DIRECTORY)
   string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "${CMAKE_CURRENT_BINARY_DIR}/" OUTPUT_SYCL_DIR ${DIR})
   file(MAKE_DIRECTORY ${OUTPUT_SYCL_DIR})
-  set(TARGET_NAME ${SOURCE_NAME_WE} PARENT_SCOPE)
+  set(TARGET_NAME ${SOURCE_NAME_WE})
+  set(TARGET_NAME ${TARGET_NAME} PARENT_SCOPE)
   set(OUTPUT_SYCL_DIR ${OUTPUT_SYCL_DIR} PARENT_SCOPE)
+
+  add_executable(${TARGET_NAME} ${SOURCE})
+  target_link_libraries(${TARGET_NAME} sycl_ml)
+  set_property(TARGET ${TARGET_NAME} PROPERTY COMPUTECPP_INCLUDE_AFTER 1)
+  # Workaround INTERFACE_SYSTEM_INCLUDE_DIRECTORIES not being propagated
+  # Add Eigen and SyclParallelSTL as system includes
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE $<TARGET_PROPERTY:Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE $<TARGET_PROPERTY:SyclParallelSTL,INTERFACE_INCLUDE_DIRECTORIES>)
+  add_sycl_to_target(TARGET ${TARGET_NAME} SOURCES ${SOURCE})
 endfunction()
 
-# Include all subdirectories with a CMakeLists.txt file
-file(GLOB _ALL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/*)
-foreach(_FILE ${_ALL_FILES})
-  if(IS_DIRECTORY ${_FILE})
-    if(EXISTS ${_FILE}/CMakeLists.txt)
-     add_subdirectory(${_FILE})
-    endif()
-  endif()
-endforeach()
+add_subdirectory(example)
+
+include(CTest)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

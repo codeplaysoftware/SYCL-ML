@@ -19,7 +19,14 @@
 #include "utils/utils.hpp"
 
 template <class DataT, class LabelT>
-void test_svm_xor() {
+void test_svm_poly() {
+  /*
+   * Solves the XOR problem, kernel has to be at least polynomial or more complex.
+   *   y  0  1
+   * x
+   * 0    0  1
+   * 1    1  0
+   */
   std::array<DataT, 8> host_data {0, 0,
                                   0, 1,
                                   1, 0,
@@ -38,7 +45,7 @@ void test_svm_xor() {
     svm.train_binary(q, sycl_data, sycl_labels);
 
     auto smo_out = svm.get_smo_outs().front();
-    ::assert_eq(smo_out.alphas.data_range[0], 4LU);
+    assert_eq(smo_out.alphas.data_range[0], 4LU);
     host_alphas = ml::make_shared_array(new DataT[smo_out.alphas.get_count()]);
     ml::sycl_copy_device_to_host(q, smo_out.alphas, host_alphas);
     host_rho = smo_out.rho;
@@ -48,9 +55,11 @@ void test_svm_xor() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "alphas:\n";
   ml::print(host_alphas.get(), 1, 4);
   std::cout << "\nrho: " << host_rho << std::endl;
+  */
 
   std::array<DataT, 4> expected_alphas {-3.332425, 2.665940, 2.665940, -1.999455};
   assert_vec_almost_eq(host_alphas.get(), expected_alphas.data(), expected_alphas.size(), DataT(1E-3));
@@ -59,7 +68,10 @@ void test_svm_xor() {
 
 int main() {
   try {
-    test_svm_xor<ml::buffer_data_type, uint8_t>();
+    test_svm_poly<float, uint8_t>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_svm_poly<double, uint8_t>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

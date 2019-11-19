@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
 
   // Runs the SVM with the RBF kernel on MNIST with a PCA.
   // The SVM will store 2 rows of the kernel matrix and has a tolerance of 0.1
-  using data_t = ml::buffer_data_type;
+  using data_t = float;
   using label_t = uint8_t;
   using svm_kernel_t = ml::svm_rbf_kernel<data_t>;
 

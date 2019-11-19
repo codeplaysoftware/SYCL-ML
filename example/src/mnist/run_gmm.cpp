@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     mnist_path = argv[1];
 
   // Runs the GMM with 8 models per label on MNIST with a PCA
-  using data_t = ml::buffer_data_type;
+  using data_t = float;
   using label_t = uint8_t;
   using distribution_t = ml::buffered_log_gaussian_distribution<data_t>;
   static constexpr unsigned M = 8;

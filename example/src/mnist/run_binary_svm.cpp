@@ -86,7 +86,7 @@ void run_binary_svm(const std::string& mnist_path) {
       // Train
       TIME(train_binary_svm);
       svm.train_binary(q, split_train_data, split_train_labels);
-      q.wait(); // wait to measure the correct training time
+      q.wait_and_throw(); // wait to measure the correct training time
     }
 
     auto& smo_out = svm.get_smo_outs().front();
@@ -126,7 +126,7 @@ void run_binary_svm(const std::string& mnist_path) {
       auto prediction_size = sycl_predicted_test_labels.get_count();  // Can be rounded up to a power of 2
       host_split_predicted_test_labels = ml::make_shared_array(new LabelT[prediction_size]);
       sycl_predicted_test_labels.set_final_data(host_split_predicted_test_labels);
-      q.wait(); // wait to measure the correct prediction time
+      q.wait_and_throw(); // wait to measure the correct prediction time
     }
 
     clear_eigen_device();
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
   if (argc >= 2)
     mnist_path = argv[1];
   try {
-    run_binary_svm<ml::buffer_data_type, uint8_t>(mnist_path);
+    run_binary_svm<float, uint8_t>(mnist_path);
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

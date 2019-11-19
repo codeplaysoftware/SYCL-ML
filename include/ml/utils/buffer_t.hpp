@@ -524,7 +524,6 @@ std::ostream& operator<<(std::ostream& os, matrix_t<T>& m) {
 template <class T>
 std::ostream& operator<<(std::ostream& os, matrices_t<T>& ms) {
   auto offset = ms.data_range[0] * ms.data_range[1];
-  range<1> rng(offset);
   std::string sep(20, '-');
   os << sep << '\n';
   auto ms_host = ms.template get_access<access::mode::read>();

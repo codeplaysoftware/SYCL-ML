@@ -49,10 +49,12 @@ void test_tri_solve() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "Y:\n";
   ml::print(host_Y, 3, 4);
   std::cout << "\nX:\n";
   ml::print(host_X, 3, 4);
+  */
 
   std::array<T, 12> expected_Y {9.0, 8.0, 7.0, 6.0,
                                 -3.25, -3.0, -2.75, -2.5,
@@ -96,10 +98,12 @@ void test_tri_solve_tr() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "Y:\n";
   ml::print(host_Y, 4, 3);
   std::cout << "\nX:\n";
   ml::print(host_X, 4, 3);
+  */
 
   std::array<T, 12> expected_Y {9.0, -3.25, -1.625,
                                 8.0, -3.0, -1.5,
@@ -114,10 +118,18 @@ void test_tri_solve_tr() {
   assert_vec_almost_eq(host_X, expected_X);
 }
 
+template <class T>
+void test_all() {
+  test_tri_solve<T>();
+  test_tri_solve_tr<T>();
+}
+
 int main(void) {
   try {
-    test_tri_solve<ml::buffer_data_type>();
-    test_tri_solve_tr<ml::buffer_data_type>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

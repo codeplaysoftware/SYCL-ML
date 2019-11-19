@@ -73,6 +73,7 @@ void test_svd_general() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "host data:\n";
   ml::print(host_data, NB_OBS, SIZE_OBS_POW2);
   std::cout << "\nU:\n";
@@ -85,15 +86,19 @@ void test_svd_general() {
   ml::print(host_residual, NB_OBS, SIZE_OBS_POW2);
   std::cout << "\ndata svd:\n";
   ml::print(host_data_svd, NB_OBS, SIZE_OBS_POW2);
+  */
 
   assert_vec_almost_eq(host_centered_data, host_data_svd);
   for (unsigned i = 0; i < NB_OBS * SIZE_OBS_POW2; ++i)
-    assert_almost_eq(host_residual[i], 0.0f);
+    assert_almost_eq(host_residual[i], T(0));
 }
 
 int main(void) {
   try {
-    test_svd_general<ml::buffer_data_type, ml::LIN>();
+    test_svd_general<float, ml::LIN>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_svd_general<double, ml::LIN>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

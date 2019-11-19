@@ -43,12 +43,14 @@ void test_center() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "host data:\n";
   ml::print(host_data, NB_OBS, ACT_SIZE_OBS);
   std::cout << "\navg data:\n";
   ml::print(host_avg_data, 1, ACT_SIZE_OBS);
   std::cout << "\ncenter data:\n";
   ml::print(host_center_data, NB_OBS, ACT_SIZE_OBS);
+  */
 
   // avg data
   assert_vec_almost_eq(host_avg_data, {-0.2, 0.4, -0.4});
@@ -63,7 +65,10 @@ void test_center() {
 
 int main() {
   try {
-    test_center<ml::buffer_data_type, ml::ROW>();
+    test_center<float, ml::ROW>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_center<double, ml::ROW>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

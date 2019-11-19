@@ -88,7 +88,7 @@ void run_classifier(const std::string& mnist_path, const ml::pca_args<typename C
           TIME(train_classifier);
           classifier.set_label_set(label_set);  // Give the sets of labels to avoid computing it during the training
           classifier.train(q, sycl_train_data, sycl_train_labels);
-          q.wait(); // wait to measure the correct training time
+          q.wait_and_throw(); // wait to measure the correct training time
         }
         if (save_classifier)
           classifier.save_to_disk(q);
@@ -116,7 +116,7 @@ void run_classifier(const std::string& mnist_path, const ml::pca_args<typename C
       auto nb_labels_predicted = sycl_predicted_test_labels.get_count();  // Can be rounded up to a power of 2
       host_predicted_test_labels = std::unique_ptr<LabelType[]>(new LabelType[nb_labels_predicted]);
       sycl_predicted_test_labels.set_final_data(host_predicted_test_labels.get());
-      q.wait(); // wait to measure the correct prediction time
+      q.wait_and_throw(); // wait to measure the correct prediction time
     } // End of tests
 
     clear_eigen_device();

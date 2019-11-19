@@ -21,10 +21,8 @@
 
 template <class T>
 void test_lin_tr_inplace_mat_op() {
-  std::cout << "\nTest transposed inplace matrix operation\n";
-
   static constexpr size_t M = 10;
-  static constexpr size_t N = 2;  // Do not change
+  static constexpr size_t N = 2;
 
   std::array<T, M*N> m1;
   std::array<T, M*N> expected_m1;
@@ -57,9 +55,7 @@ void test_lin_tr_inplace_mat_op() {
 
 template <class T>
 void test_tr_lin_inplace_mat_op() {
-  std::cout << "\nTest transposed inplace matrix operation\n";
-
-  static constexpr size_t M = 2;  // Do not change
+  static constexpr size_t M = 2;
   static constexpr size_t N = 10;
 
   std::array<T, M*N> m1;
@@ -91,10 +87,18 @@ void test_tr_lin_inplace_mat_op() {
   assert_vec_almost_eq(m1, expected_m1);
 }
 
+template <class T>
+void test_all() {
+  test_lin_tr_inplace_mat_op<T>();
+  test_tr_lin_inplace_mat_op<T>();
+}
+
 int main() {
   try {
-    test_lin_tr_inplace_mat_op<ml::buffer_data_type>();
-    test_tr_lin_inplace_mat_op<ml::buffer_data_type>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

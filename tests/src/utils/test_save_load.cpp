@@ -27,10 +27,12 @@ void test_save_load_host() {
   ml::save_array(buf.data(), SIZE, "test_buf");
   ml::load_array(res.data(), SIZE, "test_buf");
 
+  /*
   std::cout << "Saved: ";
   ml::print(buf, 1, SIZE);
   std::cout << "Loaded: ";
   ml::print(res, 1, SIZE);
+  */
 
   assert_vec_almost_eq(res, buf);
 }
@@ -54,20 +56,28 @@ void test_save_load_device() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "Saved: ";
   ml::print(buf, 1, SIZE);
   std::cout << "Loaded: ";
   ml::print(res, 1, SIZE);
+  */
 
   assert_vec_almost_eq(res, buf);
 }
 
+template <class T>
+void test_all() {
+  test_save_load_host<T>();
+  test_save_load_device<T>();
+}
+
 int main() {
   try {
-    test_save_load_host<float>();
-    test_save_load_host<double>();
-    test_save_load_device<float>();
-    test_save_load_device<double>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

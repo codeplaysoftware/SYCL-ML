@@ -21,14 +21,6 @@
 #ifndef INCLUDE_ML_EIGEN_MY_EIGEN_HPP
 #define INCLUDE_ML_EIGEN_MY_EIGEN_HPP
 
-#define EIGEN_USE_SYCL
-#define EIGEN_EXCEPTIONS
-
-// Cannot use Eigen vectorization with the default allocator for buffers,
-// data would have to be always padded
-#define EIGEN_DONT_VECTORIZE
-#define EIGEN_DONT_VECTORIZE_SYCL
-
 #include <unsupported/Eigen/CXX11/Tensor>
 
 namespace ml

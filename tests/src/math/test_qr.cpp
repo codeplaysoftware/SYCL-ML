@@ -40,13 +40,16 @@ void test_qr() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "host data:\n";
   ml::print(host_data, NB_OBS, DATA_DIM);
   std::cout << "\nhost R:\n";
   ml::print(host_qr, NB_OBS, DATA_DIM);
+  */
 
-  // Multiple results are correct. Each row can be multiplied by -1.
+  // Multiple correct results are possible. Each row can be multiplied by -1.
   // In the current implementation all values on the diagonal are positive.
+  // Only test the upper triangle matrix as the rest can have any value.
   assert_almost_eq(host_qr[0], T(3.87298));
   assert_almost_eq(host_qr[1], T(2.32379));
   assert_almost_eq(host_qr[2], T(-1.29099));
@@ -84,11 +87,13 @@ void test_qr_square() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "host data:\n";
   ml::print(host_data, N, N);
   std::cout << "\nhost R:\n";
-  ml::print(host_qr, N, N); // only upper triangle matters
+  ml::print(host_qr, N, N);
   std::cout << "\ndeterminant: " << det_r << std::endl;
+  */
 
   assert_almost_eq(det_r, DET_SIGN * host_qr[0] * host_qr[3]);
   assert_almost_eq(det_r, det_data);
@@ -144,11 +149,19 @@ void test_optimized_qr() {
   assert_vec_almost_eq(host_r2, host_cov, T(1E-3));
 }
 
+template <class T>
+void test_all() {
+  test_qr<T>();
+  test_qr_square<T>();
+  test_optimized_qr<T>();
+}
+
 int main(void) {
   try {
-    test_qr<ml::buffer_data_type>();
-    test_qr_square<ml::buffer_data_type>();
-    test_optimized_qr<ml::buffer_data_type>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

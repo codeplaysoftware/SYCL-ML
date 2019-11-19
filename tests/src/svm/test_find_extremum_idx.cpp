@@ -47,12 +47,15 @@ void test_find_extremum_idx() {
     clear_eigen_device();
   }
 
-  ::assert_eq(min_idx, EXPECTED_MIN_IDX);
+  assert_eq(min_idx, EXPECTED_MIN_IDX);
 }
 
 int main() {
   try {
-    test_find_extremum_idx<ml::buffer_data_type>();
+    test_find_extremum_idx<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_find_extremum_idx<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

@@ -16,6 +16,8 @@
 #ifndef INCLUDE_ML_EIGEN_SYCL_TO_EIGEN_HPP
 #define INCLUDE_ML_EIGEN_SYCL_TO_EIGEN_HPP
 
+#include <memory>
+
 #include "ml/utils/buffer_t.hpp"
 #include "ml/utils/access.hpp"
 
@@ -50,7 +52,7 @@ eig_dsize_t<OUT_DIM> range_to_dsize(const range<IN_DIM>& r) {
  *       destroyed, the 2 Tensors become invalid. The fix would require to either count the number of references for
  *       each buffer or to create a different pointer if one already exist.
  *
- * @tparam T Only the type defined by \p cl::sycl::codeplay::buffer_data_type is possible for now
+ * @tparam T
  * @tparam IN_DIM dimension of the SYCL buffer
  * @tparam OUT_DIM dimension of the Eigen Tensor
  * @tparam DataLayout Eigen::RowMajor or Eigen::ColMajor
@@ -61,11 +63,13 @@ private:
   using Self = sycl_to_eigen_t<T, IN_DIM, OUT_DIM, DataLayout>;
 
 public:
-  sycl_to_eigen_t() : _host_ptr(nullptr), _tensor(nullptr, eig_dsize_t<OUT_DIM>()) {}
+  sycl_to_eigen_t() = default;
 
-  sycl_to_eigen_t(buffer_t<T, IN_DIM>& b, const eig_dsize_t<OUT_DIM>& sizes) :
-      _host_ptr(static_cast<T*>(get_eigen_device().attach_buffer(b))),
-      _tensor(_host_ptr, sizes) {}
+  sycl_to_eigen_t(buffer_t<T, IN_DIM>& b, const eig_dsize_t<OUT_DIM>& sizes) {
+    auto reinterpret_buffer = b.template reinterpret<Eigen::TensorSycl::internal::buffer_data_type_t>(cl::sycl::range<1>(b.get_count() * sizeof(T)));
+    _host_ptr = static_cast<T*>(get_eigen_device().attach_buffer(reinterpret_buffer));
+    _tensor = std::make_shared<tensor_map_t<T, OUT_DIM, DataLayout>>(_host_ptr, sizes);
+  }
 
   ~sycl_to_eigen_t() {
     if (_host_ptr)
@@ -75,7 +79,7 @@ public:
   /**
    * @return the Eigen Tensor
    */
-  inline auto& tensor() { return _tensor; }
+  inline auto& tensor() { return *_tensor; }
 
   /**
    * @return the Eigen TensorDevice (for assignment)
@@ -90,7 +94,7 @@ public:
 
 private:
   T* _host_ptr;
-  tensor_map_t<T, OUT_DIM, DataLayout> _tensor;
+  std::shared_ptr<tensor_map_t<T, OUT_DIM, DataLayout>> _tensor;
 };
 
 /**

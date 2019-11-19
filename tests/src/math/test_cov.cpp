@@ -41,10 +41,12 @@ void test_cov_square() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "host data:\n";
   ml::print(host_data, 3, 3);
   std::cout << "\ncov:\n";
   ml::print(host_cov, 3, 3);
+  */
 
   std::array<T, 9> expected {6.0,         -10.0,       0.0,
                              host_cov[1], 56.0/3.0,    2.0/3.0,
@@ -74,20 +76,30 @@ void test_cov_general() {
     clear_eigen_device();
   }
 
+  /*
   std::cout << "data:\n";
   ml::print(host_data, 3, 2);
   std::cout << "\ncov:\n";
   ml::print(host_cov, 2, 2);
+  */
 
   std::array<T, 4> expected {2.0/3.0,     0.0,
                              host_cov[1], 18.0};
   assert_vec_almost_eq(host_cov, expected);
 }
 
+template <class T>
+void test_all() {
+  test_cov_square<T, ml::COL>();
+  test_cov_general<T, ml::ROW>();
+}
+
 int main(void) {
   try {
-    test_cov_square<ml::buffer_data_type, ml::COL>();
-    test_cov_general<ml::buffer_data_type, ml::ROW>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

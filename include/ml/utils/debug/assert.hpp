@@ -23,12 +23,9 @@
 
 #include <cmath>
 #include <cassert>
+#include <iostream>
 
 #include "ml/utils/access.hpp"
-
-#if defined(DEBUG) && defined(NDEBUG)
-#error "DEBUG and NDEBUG cannot be both defined"
-#endif
 
 namespace ml
 {
@@ -36,7 +33,7 @@ namespace ml
 #define STATIC_ASSERT_A_IMPLIES_B(a, b) static_assert(((a) && (b)) || !(a), "")
 #define STATIC_ASSERT_DATA_DIM_FOR_DIM_2(dim, d) STATIC_ASSERT_A_IMPLIES_B(dim != 2, d == LIN)
 
-#ifdef DEBUG
+#ifndef NDEBUG
 template <class T>
 void assert_eq(T actual, T expected) {
   if (actual != expected) {
@@ -116,7 +113,7 @@ void assert_real(T x) {
 
 inline void assert_rng_square(const range<2>& r) { assert_eq(r[0], r[1]); }
 
-#else // not DEBUG
+#else // NDEBUG
 template <class T> inline void assert_eq(T, T) {}
 template <class T> inline void assert_vec_eq(const T&, const T&, size_t) {}
 template <int DIM> inline void assert_rng_eq(const range<DIM>&, const range<DIM>&) {}
@@ -128,7 +125,7 @@ template <data_dim = LIN> inline void assert_rng_less_or_eq(const range<2>&, SYC
 template <data_dim = LIN> inline void assert_rng_less_or_eq(const range<3>&, SYCLIndexT, SYCLIndexT, SYCLIndexT) {}
 template <class T> inline void assert_real(T) {}
 inline void assert_rng_square(const range<2>&) {}
-#endif // end DEBUG
+#endif // end NDEBUG
 
 } // ml
 

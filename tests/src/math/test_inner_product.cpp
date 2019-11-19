@@ -31,9 +31,12 @@ void test_inner_product_self() {
     clear_eigen_device();
   }
 
-  for (unsigned i = 0; i < SIZE; ++i)
+  /*
+  for (unsigned i = 0; i < SIZE; ++i) {
     std::cout << in[i] << " ";
+  }
   std::cout << "\nres=" << res << std::endl;
+  */
 
   assert_almost_eq(res, T(2.25));
 }
@@ -55,20 +58,32 @@ void test_inner_product_other() {
     clear_eigen_device();
   }
 
-  for (unsigned i = 0; i < SIZE; ++i)
+  /*
+  for (unsigned i = 0; i < SIZE; ++i) {
     std::cout << in1[i] << " ";
+  }
   std::cout << std::endl;
-  for (unsigned i = 0; i < SIZE; ++i)
+  for (unsigned i = 0; i < SIZE; ++i) {
     std::cout << in2[i] << " ";
+  }
   std::cout << "\nres=" << res << std::endl;
+  */
 
   assert_almost_eq(res, T(11));
 }
 
+template <class T>
+void test_all() {
+  test_inner_product_self<T>();
+  test_inner_product_other<T>();
+}
+
 int main() {
   try {
-    test_inner_product_self<ml::buffer_data_type>();
-    test_inner_product_other<ml::buffer_data_type>();
+    test_all<float>();
+#ifdef SYCLML_TEST_DOUBLE
+    test_all<double>();
+#endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

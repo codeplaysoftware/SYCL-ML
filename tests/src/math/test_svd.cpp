@@ -15,8 +15,8 @@
  */
 #include <iostream>
 
-#include "ml/math/mat_ops.hpp"
 #include "ml/math/mat_mul.hpp"
+#include "ml/math/mat_ops.hpp"
 #include "ml/math/svd.hpp"
 #include "utils/utils.hpp"
 
@@ -25,10 +25,9 @@ void test_svd_general() {
   constexpr auto NB_OBS = 4LU;
   constexpr auto ACT_SIZE_OBS = NB_OBS;
   constexpr auto SIZE_OBS_POW2 = ACT_SIZE_OBS;
-  std::array<T, NB_OBS * SIZE_OBS_POW2> host_data {1.0, 2.0, 0.0, -3.0,
-                                                   2.0, -5.0, 2.0, 1.0,
-                                                   0.0, 2.0, -1.0, -1.0,
-                                                   -3.0, 1.0, -1.0, 3.0};
+  std::array<T, NB_OBS * SIZE_OBS_POW2> host_data{
+      1.0, 2.0, 0.0,  -3.0, 2.0,  -5.0, 2.0,  1.0,
+      0.0, 2.0, -1.0, -1.0, -3.0, 1.0,  -1.0, 3.0};
 
   constexpr auto NB_VEC = ACT_SIZE_OBS;
 
@@ -40,13 +39,16 @@ void test_svd_general() {
   std::array<T, NB_OBS * SIZE_OBS_POW2> host_centered_data;
   {
     cl::sycl::queue& q = create_queue();
-    ml::matrix_t<T> sycl_data(host_data.data(), cl::sycl::range<2>(NB_OBS, SIZE_OBS_POW2));
+    ml::matrix_t<T> sycl_data(host_data.data(),
+                              cl::sycl::range<2>(NB_OBS, SIZE_OBS_POW2));
     sycl_data.data_range = cl::sycl::range<2>(NB_OBS, ACT_SIZE_OBS);
-    ml::vector_t<T> sycl_data_avg(cl::sycl::range<1>(ACT_SIZE_OBS), ml::get_optimal_nd_range(SIZE_OBS_POW2));
+    ml::vector_t<T> sycl_data_avg(cl::sycl::range<1>(ACT_SIZE_OBS),
+                                  ml::get_optimal_nd_range(SIZE_OBS_POW2));
 
     ml::avg<D>(q, sycl_data, sycl_data_avg);
     ml::center_data<ml::opp<D>()>(q, sycl_data, sycl_data_avg);
-    ml::matrix_t<T> sycl_centered_data(sycl_data.data_range, sycl_data.kernel_range);
+    ml::matrix_t<T> sycl_centered_data(sycl_data.data_range,
+                                       sycl_data.kernel_range);
     ml::sycl_copy(q, sycl_data, sycl_centered_data);
 
     auto sycl_VLU = ml::svd<true, true, true>(q, sycl_data);
@@ -60,9 +62,11 @@ void test_svd_general() {
     ml::matrix_t<T> sycl_data_svd(sycl_data.data_range, sycl_data.kernel_range);
     ml::matrix_t<T> sycl_copy_V(sycl_V.data_range, sycl_V.kernel_range);
     ml::sycl_copy(q, sycl_V, sycl_copy_V);
-    ml::mat_vec_apply_op(q, sycl_copy_V, sycl_L, std::multiplies<T>()); // diag(L) * V
+    ml::mat_vec_apply_op(q, sycl_copy_V, sycl_L,
+                         std::multiplies<T>());  // diag(L) * V
     ml::mat_mul(q, sycl_U, sycl_copy_V, sycl_data_svd);
-    ml::mat_inplace_binary_op(q, sycl_data_svd, sycl_data, std::plus<T>()); // Add residual
+    ml::mat_inplace_binary_op(q, sycl_data_svd, sycl_data,
+                              std::plus<T>());  // Add residual
 
     sycl_data.set_final_data(host_residual.data());
     sycl_centered_data.set_final_data(host_centered_data.data());
@@ -105,4 +109,3 @@ int main(void) {
 
   return 0;
 }
-

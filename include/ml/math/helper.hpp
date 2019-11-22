@@ -18,12 +18,11 @@
 
 #include <cmath>
 
-namespace ml
-{
+namespace ml {
 
 template <class T>
 static const T PI = std::atan(1) * 4;
 
 }
 
-#endif //INCLUDE_ML_MATH_HELPER_HPP
+#endif  // INCLUDE_ML_MATH_HELPER_HPP

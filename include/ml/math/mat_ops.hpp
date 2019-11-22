@@ -18,8 +18,7 @@
 
 #include "ml/utils/common.hpp"
 
-namespace ml
-{
+namespace ml {
 
 class ml_eye;
 
@@ -35,11 +34,12 @@ void eye(queue& q, matrix_t<T>& mat) {
 
   q.submit([&](handler& cgh) {
     auto mat_acc = mat.template get_access_2d<access::mode::discard_write>(cgh);
-    cgh.parallel_for<NameGen<0, ml_eye, T>>(mat.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      mat_acc(row, col) = row == col;
-    });
+    cgh.parallel_for<NameGen<0, ml_eye, T>>(mat.get_nd_range(),
+                                            [=](nd_item<2> item) {
+                                              auto row = item.get_global_id(0);
+                                              auto col = item.get_global_id(1);
+                                              mat_acc(row, col) = row == col;
+                                            });
   });
 }
 
@@ -62,11 +62,12 @@ void transpose(queue& q, matrix_t<T>& in, matrix_t<T>& out) {
   q.submit([&](handler& cgh) {
     auto in_acc = in.template get_access_2d<access::mode::read>(cgh);
     auto out_acc = out.template get_access_2d<access::mode::discard_write>(cgh);
-    cgh.parallel_for<NameGen<0, ml_transpose, T>>(in.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      out_acc(col, row) = in_acc(row, col);
-    });
+    cgh.parallel_for<NameGen<0, ml_transpose, T>>(
+        in.get_nd_range(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(0);
+          auto col = item.get_global_id(1);
+          out_acc(col, row) = in_acc(row, col);
+        });
   });
 }
 
@@ -86,19 +87,21 @@ class ml_mat_inplace_binary_op;
  * @param op
  */
 template <data_dim D1 = LIN, data_dim D2 = LIN, class T, class BinaryOp>
-void mat_inplace_binary_op(queue& q, matrix_t<T>& in_out1, matrix_t<T>& in2, BinaryOp op = BinaryOp()) {
+void mat_inplace_binary_op(queue& q, matrix_t<T>& in_out1, matrix_t<T>& in2,
+                           BinaryOp op = BinaryOp()) {
   assert_eq(access_ker_dim<D1>(in_out1, 0), access_ker_dim<D2>(in2, 0));
   assert_eq(access_ker_dim<D1>(in_out1, 1), access_ker_dim<D2>(in2, 1));
 
   q.submit([&](handler& cgh) {
-    auto in_out1_acc = in_out1.template get_access_2d<access::mode::read_write, D1>(cgh);
+    auto in_out1_acc =
+        in_out1.template get_access_2d<access::mode::read_write, D1>(cgh);
     auto in2_acc = in2.template get_access_2d<access::mode::read, D2>(cgh);
-    cgh.parallel_for<NameGen<0, ml_mat_inplace_binary_op<D1, D2>, T, BinaryOp>>(in_out1.template get_nd_range<D1>(),
-                                                                                [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      in_out1_acc(row, col) = op(in_out1_acc(row, col), in2_acc(row, col));
-    });
+    cgh.parallel_for<NameGen<0, ml_mat_inplace_binary_op<D1, D2>, T, BinaryOp>>(
+        in_out1.template get_nd_range<D1>(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(0);
+          auto col = item.get_global_id(1);
+          in_out1_acc(row, col) = op(in_out1_acc(row, col), in2_acc(row, col));
+        });
   });
 }
 
@@ -115,8 +118,9 @@ void avg(queue&, matrix_t<T>& dataset, vector_t<T>& avg) {
   auto eig_dataset = sycl_to_eigen(dataset);
   auto eig_avg = sycl_to_eigen(avg);
 
-  static const std::array<eig_index_t, 1> dims { D };
-  eig_avg.device() = eig_dataset.tensor().sum(dims) / static_cast<T>(access_data_dim<D>(dataset, 0));
+  static const std::array<eig_index_t, 1> dims{D};
+  eig_avg.device() = eig_dataset.tensor().sum(dims) /
+                     static_cast<T>(access_data_dim<D>(dataset, 0));
 }
 
 class ml_mat_vec_binary_op;
@@ -134,7 +138,8 @@ class ml_mat_vec_binary_op;
  * @param op
  */
 template <data_dim D = ROW, class T, class BinaryOp>
-void mat_vec_apply_op(queue& q, matrix_t<T>& in, matrix_t<T>& out, vector_t<T>& vec, BinaryOp op = BinaryOp()) {
+void mat_vec_apply_op(queue& q, matrix_t<T>& in, matrix_t<T>& out,
+                      vector_t<T>& vec, BinaryOp op = BinaryOp()) {
   assert_rng_less_or_eq(out.get_kernel_range(), in.get_kernel_range());
   assert_less_or_eq(access_ker_dim<D>(out, 0), vec.get_count());
 
@@ -142,12 +147,13 @@ void mat_vec_apply_op(queue& q, matrix_t<T>& in, matrix_t<T>& out, vector_t<T>& 
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
     auto in_acc = in.template get_access_2d<access::mode::read>(cgh);
     auto out_acc = out.template get_access_2d<access::mode::discard_write>(cgh);
-    cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op, T, BinaryOp>>(out.get_nd_range(),
-                                                                    [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      out_acc(row, col) = op(in_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
-    });
+    cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op, T, BinaryOp>>(
+        out.get_nd_range(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(0);
+          auto col = item.get_global_id(1);
+          out_acc(row, col) =
+              op(in_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
+        });
   });
 }
 
@@ -156,7 +162,8 @@ class ml_mat_vec_inplace_binary_op;
 /**
  * @brief in_out = op(in_out, vec).
  *
- * @see mat_vec_apply_op(queue&, matrix_t<T>&, matrix_t<T>&, vector_t<T>&, BinaryOp)
+ * @see mat_vec_apply_op(queue&, matrix_t<T>&, matrix_t<T>&, vector_t<T>&,
+ * BinaryOp)
  * @tparam D whether to apply the operator for each row or each column
  * @tparam T
  * @tparam BinaryOp T -> T -> T
@@ -166,26 +173,29 @@ class ml_mat_vec_inplace_binary_op;
  * @param op
  */
 template <data_dim D = ROW, class T, class BinaryOp>
-inline void mat_vec_apply_op(queue& q, matrix_t<T>& in_out, vector_t<T>& vec, BinaryOp op = BinaryOp()) {
+inline void mat_vec_apply_op(queue& q, matrix_t<T>& in_out, vector_t<T>& vec,
+                             BinaryOp op = BinaryOp()) {
   assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_count());
 
   q.submit([&](handler& cgh) {
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
-    auto in_out_acc = in_out.template get_access_2d<access::mode::read_write>(cgh);
-    cgh.parallel_for<NameGen<D, ml_mat_vec_inplace_binary_op, T, BinaryOp>>(in_out.get_nd_range(),
-                                                                            [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      in_out_acc(row, col) = op(in_out_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
-    });
+    auto in_out_acc =
+        in_out.template get_access_2d<access::mode::read_write>(cgh);
+    cgh.parallel_for<NameGen<D, ml_mat_vec_inplace_binary_op, T, BinaryOp>>(
+        in_out.get_nd_range(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(0);
+          auto col = item.get_global_id(1);
+          in_out_acc(row, col) =
+              op(in_out_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
+        });
   });
 }
 
 class ml_mat_vec_binary_op_data_rng;
 
 /**
- * @brief Similar to mat_vec_apply_op(queue&, matrix_t<T>&, vector_t<T>&, BinaryOp) except it applies
- *        the operator on the data_range only.
+ * @brief Similar to mat_vec_apply_op(queue&, matrix_t<T>&, vector_t<T>&,
+ * BinaryOp) except it applies the operator on the data_range only.
  *
  * @tparam D whether to apply the operator for each row or each column
  * @tparam T
@@ -196,7 +206,8 @@ class ml_mat_vec_binary_op_data_rng;
  * @param op
  */
 template <data_dim D = ROW, class T, class BinaryOp>
-void mat_vec_apply_op_data_rng(queue& q, matrix_t<T>& in_out, vector_t<T>& vec, BinaryOp op = BinaryOp()) {
+void mat_vec_apply_op_data_rng(queue& q, matrix_t<T>& in_out, vector_t<T>& vec,
+                               BinaryOp op = BinaryOp()) {
   assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_count());
 
   auto data_dim_0 = access_data_dim(in_out, 0);
@@ -204,13 +215,14 @@ void mat_vec_apply_op_data_rng(queue& q, matrix_t<T>& in_out, vector_t<T>& vec, 
   q.submit([&](handler& cgh) {
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
     auto mat_acc = in_out.template get_access_2d<access::mode::read_write>(cgh);
-    cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op_data_rng, T, BinaryOp>>(in_out.get_nd_range(),
-                                                                             [=](nd_item<2> item) {
-      auto row = item.get_global_id(0);
-      auto col = item.get_global_id(1);
-      if (row < data_dim_0 && col < data_dim_1)
-        mat_acc(row, col) = op(mat_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
-    });
+    cgh.parallel_for<NameGen<D, ml_mat_vec_binary_op_data_rng, T, BinaryOp>>(
+        in_out.get_nd_range(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(0);
+          auto col = item.get_global_id(1);
+          if (row < data_dim_0 && col < data_dim_1)
+            mat_acc(row, col) =
+                op(mat_acc(row, col), vec_acc(lin_or_tr<D>(row, col)));
+        });
   });
 }
 
@@ -237,13 +249,15 @@ class ml_reduce_diag;
  * @tparam T
  * @param q
  * @param[in] mat
- * @param offset use the main diagonal if 0, an upper diagonal if offset > 0, a lower diagonal if offset < 0
+ * @param offset use the main diagonal if 0, an upper diagonal if offset > 0, a
+ * lower diagonal if offset < 0
  * @param init first value given as the first argument to the reduce
  * @param reduce
  * @return result of the reduce
  */
 template <class Reduce, class T>
-T reduce_diag(queue& q, matrix_t<T>& mat, long offset = 0, T init = 0, Reduce reduce = Reduce()) {
+T reduce_diag(queue& q, matrix_t<T>& mat, long offset = 0, T init = 0,
+              Reduce reduce = Reduce()) {
   auto diag_len = access_data_dim(mat, 1) - std::abs(offset);
   SYCLIndexT row_offset = offset < 0 ? -offset : 0;
   SYCLIndexT col_offset = offset > 0 ? offset : 0;
@@ -254,13 +268,14 @@ T reduce_diag(queue& q, matrix_t<T>& mat, long offset = 0, T init = 0, Reduce re
       auto out_acc = out.template get_access<access::mode::read_write>(cgh);
       cgh.single_task<NameGen<0, ml_reduce_diag, T, Reduce>>([=]() {
         for (SYCLIndexT i = 0; i < diag_len; ++i)
-          out_acc[0] = reduce(out_acc[0], mat_acc(i + row_offset, i + col_offset));
+          out_acc[0] =
+              reduce(out_acc[0], mat_acc(i + row_offset, i + col_offset));
       });
     });
   }
   return init;
 }
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_MATH_MAT_OPS_HPP
+#endif  // INCLUDE_ML_MATH_MAT_OPS_HPP

@@ -21,10 +21,8 @@
 
 template <class T>
 void test_square() {
-  std::array<T, 4> m1 {1.0, 2.0,
-                       3.0, 4.0};
-  std::array<T, 4> m2 {-1.0, 1.0,
-                       5.0, -2.0};
+  std::array<T, 4> m1{1.0, 2.0, 3.0, 4.0};
+  std::array<T, 4> m2{-1.0, 1.0, 5.0, -2.0};
   std::array<T, 4> m3;
 
   {
@@ -48,17 +46,13 @@ void test_square() {
   ml::print(m3, 2, 2);
   */
 
-  assert_vec_almost_eq(m3, {9.0, -3.0,
-                            17.0, -5.0});
+  assert_vec_almost_eq(m3, {9.0, -3.0, 17.0, -5.0});
 }
 
 template <class T>
 void test_general() {
-  std::array<T, 6> m1 {1.0, 2.0, 3.0,
-                       4.0, 5.0, 6.0};
-  std::array<T, 3> m2 {-1.0,
-                        5.0,
-                        2.0};
+  std::array<T, 6> m1{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+  std::array<T, 3> m2{-1.0, 5.0, 2.0};
   std::array<T, 2> m3;
 
   {
@@ -103,4 +97,3 @@ int main() {
 
   return 0;
 }
-

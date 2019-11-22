@@ -27,11 +27,8 @@ void test_svm_linear() {
    * 0    0  1
    * 1    1  1
    */
-  std::array<DataT, 8> host_data {0, 0,
-                                  0, 1,
-                                  1, 0,
-                                  1, 1};
-  std::array<LabelT, 4> host_labels {0, 1, 1, 1};
+  std::array<DataT, 8> host_data{0, 0, 0, 1, 1, 0, 1, 1};
+  std::array<LabelT, 4> host_labels{0, 1, 1, 1};
   std::shared_ptr<DataT> host_alphas;
   DataT host_rho;
 
@@ -60,8 +57,9 @@ void test_svm_linear() {
   std::cout << "\nrho: " << host_rho << std::endl;
   */
 
-  std::array<DataT, 3> expected_alphas {-4, 2, 2};
-  assert_vec_almost_eq(host_alphas.get(), expected_alphas.data(), expected_alphas.size());
+  std::array<DataT, 3> expected_alphas{-4, 2, 2};
+  assert_vec_almost_eq(host_alphas.get(), expected_alphas.data(),
+                       expected_alphas.size());
   assert_almost_eq(host_rho, DataT(-1));
 }
 
@@ -77,4 +75,3 @@ int main() {
 
   return 0;
 }
-

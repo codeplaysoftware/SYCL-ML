@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "run_classifier.hpp"
 #include "ml/classifiers/bayes/bayes_classifier.hpp"
 #include "ml/classifiers/bayes/distributions/log_gaussian_distribution.hpp"
+#include "run_classifier.hpp"
 
 int main(int argc, char** argv) {
   std::string mnist_path = "data/mnist";
@@ -30,7 +30,8 @@ int main(int argc, char** argv) {
   pca_args.keep_percent = 0.8;  // Keep at least 80% of information
   pca_args.scale_factor = 1E2;  // More accurate but slower PCA
   try {
-    run_classifier<ml::bayes_classifier<distribution_t, uint8_t>>(mnist_path, pca_args);
+    run_classifier<ml::bayes_classifier<distribution_t, uint8_t>>(mnist_path,
+                                                                  pca_args);
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

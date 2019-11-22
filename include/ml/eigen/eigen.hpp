@@ -15,7 +15,8 @@
  */
 /**
  * @file
- * @brief Include the Tensor module of Eigen using SYCL and define useful aliases.
+ * @brief Include the Tensor module of Eigen using SYCL and define useful
+ * aliases.
  */
 
 #ifndef INCLUDE_ML_EIGEN_MY_EIGEN_HPP
@@ -23,19 +24,18 @@
 
 #include <unsupported/Eigen/CXX11/Tensor>
 
-namespace ml
-{
+namespace ml {
 
 using Eigen::Dynamic;
 
 template <class T, int DIM, Eigen::StorageOptions DataLayout = Eigen::RowMajor>
 using tensor_map_t = Eigen::TensorMap<Eigen::Tensor<T, DIM, DataLayout>>;
 
-#define DEFINE_EIGEN_ALIAS(NAME, DIM)                     \
-template <class T, int DataLayout = Eigen::RowMajor>      \
-using eig_##NAME##_t = Eigen::Tensor<T, DIM, DataLayout>; \
-template <class T, int DataLayout = Eigen::RowMajor>      \
-using eig_##NAME##_map_t = Eigen::TensorMap<eig_##NAME##_t<T, DataLayout>>
+#define DEFINE_EIGEN_ALIAS(NAME, DIM)                       \
+  template <class T, int DataLayout = Eigen::RowMajor>      \
+  using eig_##NAME##_t = Eigen::Tensor<T, DIM, DataLayout>; \
+  template <class T, int DataLayout = Eigen::RowMajor>      \
+  using eig_##NAME##_map_t = Eigen::TensorMap<eig_##NAME##_t<T, DataLayout>>
 
 /// @brief Generate \p eig_scalar_t and \p eig_scalar_map_t
 DEFINE_EIGEN_ALIAS(scalar, 0);
@@ -53,6 +53,6 @@ using eig_dsize_t = Eigen::DSizes<eig_index_t, DIM>;
 template <int DIM>
 using eig_dims_t = Eigen::array<eig_index_t, DIM>;
 
-}
+}  // namespace ml
 
-#endif //INCLUDE_ML_EIGEN_MY_EIGEN_HPP
+#endif  // INCLUDE_ML_EIGEN_MY_EIGEN_HPP

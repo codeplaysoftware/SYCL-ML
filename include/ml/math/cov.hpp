@@ -18,8 +18,7 @@
 
 #include "ml/math/mat_mul.hpp"
 
-namespace ml
-{
+namespace ml {
 
 /**
  * @brief Compute the covariance matrix of \p dataset
@@ -44,6 +43,6 @@ void cov(queue& q, matrix_t<T>& dataset, matrix_t<T>& cov_mat) {
   sycl_normalize(q, cov_mat, static_cast<T>(nb_obs));
 }
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_MATH_COV_HPP
+#endif  // INCLUDE_ML_MATH_COV_HPP

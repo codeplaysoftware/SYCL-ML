@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "run_classifier.hpp"
 #include "ml/classifiers/svm/svm.hpp"
+#include "run_classifier.hpp"
 
 int main(int argc, char** argv) {
   std::string mnist_path = "data/mnist";
@@ -27,8 +27,8 @@ int main(int argc, char** argv) {
   using label_t = uint8_t;
   using svm_kernel_t = ml::svm_rbf_kernel<data_t>;
 
-  const data_t C = 5;           // Parameter of a C-SVM
-  const svm_kernel_t ker(0.05); // Parameter of the RBF kernel
+  const data_t C = 5;            // Parameter of a C-SVM
+  const svm_kernel_t ker(0.05);  // Parameter of the RBF kernel
 
   ml::pca_args<data_t> pca_args;
   pca_args.min_nb_vecs = 64;    // Keep at least 64 basis vector
@@ -36,7 +36,8 @@ int main(int argc, char** argv) {
   pca_args.scale_factor = 1E2;  // More accurate but slower PCA
 
   try {
-    run_classifier(mnist_path, pca_args, ml::svm<svm_kernel_t, label_t>(C, ker, 2, 0.1, 0.1));
+    run_classifier(mnist_path, pca_args,
+                   ml::svm<svm_kernel_t, label_t>(C, ker, 2, 0.1, 0.1));
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();
   }

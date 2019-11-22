@@ -22,9 +22,7 @@
 
 template <class T>
 void test_inv() {
-  std::array<T, 9> host_data {1.0, 4.0, 6.0,
-                              0.0, -1.0, 2.0,
-                              5.0, 3.0, 4.0};
+  std::array<T, 9> host_data{1.0, 4.0, 6.0, 0.0, -1.0, 2.0, 5.0, 3.0, 4.0};
 
   std::array<T, 9> host_inv;
   {
@@ -46,9 +44,9 @@ void test_inv() {
   ml::print(host_inv, 3, 3);
   */
 
-  std::array<T, 9> expected {-0.166667, 0.0333335, 0.233333,
-                             0.166667, -0.433333, -0.0333333,
-                             0.0833333, 0.283333, -0.0166667};
+  std::array<T, 9> expected{-0.166667, 0.0333335, 0.233333,
+                            0.166667,  -0.433333, -0.0333333,
+                            0.0833333, 0.283333,  -0.0166667};
   assert_vec_almost_eq(host_inv, expected);
 }
 
@@ -85,18 +83,21 @@ void test_inv_big() {
 
     ml::matrix_t<T> sycl_inv{rng};
     ml::mat_inv(q, sycl_data, sycl_inv);
-    //ml::write_bmp_grayscale("inv_" + std::to_string(SIDE), sycl_inv, true, true);
+    // ml::write_bmp_grayscale("inv_" + std::to_string(SIDE), sycl_inv, true,
+    // true);
 
     ml::matrix_t<T> multiplication{rng};
     ml::mat_mul(q, sycl_data, sycl_inv, multiplication);
-    //ml::write_bmp_grayscale("inv_multiplication_" + std::to_string(SIDE), multiplication, true, true);
+    // ml::write_bmp_grayscale("inv_multiplication_" + std::to_string(SIDE),
+    // multiplication, true, true);
 
     ml::matrix_t<T> identity{rng};
     ml::eye(q, identity);
     ml::matrix_t<T> diff{rng};
     ml::sycl_copy(q, identity, diff);
     ml::mat_inplace_binary_op(q, diff, multiplication, std::minus<T>());
-    //ml::write_bmp_grayscale("inv_diff_" + std::to_string(SIDE), diff, true, true);
+    // ml::write_bmp_grayscale("inv_diff_" + std::to_string(SIDE), diff, true,
+    // true);
     diff.set_final_data(host_diff.data());
     clear_eigen_device();
   }
@@ -108,10 +109,8 @@ void test_inv_big() {
 
 template <class T>
 void test_tri_inv() {
-  std::array<T, 16> host_data {1.0, 2.0, 3.0, 4.0,
-                               0.0, 5.0, 6.0, 7.0,
-                               0.0, 0.0, 8.0, 9.0,
-                               0.0, 0.0, 0.0, 10.0};
+  std::array<T, 16> host_data{1.0, 2.0, 3.0, 4.0, 0.0, 5.0, 6.0, 7.0,
+                              0.0, 0.0, 8.0, 9.0, 0.0, 0.0, 0.0, 10.0};
 
   std::array<T, 16> host_inv;
   {
@@ -131,10 +130,9 @@ void test_tri_inv() {
   ml::print(host_inv, 4, 4);
   */
 
-  std::array<T, 16> expected {1.0, -0.4, -0.075, -0.0525,
-                              0.0, 0.2, -0.15, -0.005,
-                              0.0, 0.0, 0.125, -0.1125,
-                              0.0, 0.0, 0.0, 0.1};
+  std::array<T, 16> expected{1.0,   -0.4,   -0.075, -0.0525, 0.0,   0.2,
+                             -0.15, -0.005, 0.0,    0.0,     0.125, -0.1125,
+                             0.0,   0.0,    0.0,    0.1};
   assert_vec_almost_eq(host_inv, expected);
 }
 
@@ -158,18 +156,21 @@ void test_tri_inv_big() {
 
     ml::matrix_t<T> sycl_tri_inv{rng};
     ml::tri_inv(q, sycl_data, sycl_tri_inv);
-    //ml::write_bmp_grayscale("tri_inv_" + std::to_string(SIDE), sycl_tri_inv, true, true);
+    // ml::write_bmp_grayscale("tri_inv_" + std::to_string(SIDE), sycl_tri_inv,
+    // true, true);
 
     ml::matrix_t<T> multiplication{rng};
     ml::mat_mul(q, sycl_data, sycl_tri_inv, multiplication);
-    //ml::write_bmp_grayscale("tri_inv_multiplication_" + std::to_string(SIDE), multiplication, true, true);
+    // ml::write_bmp_grayscale("tri_inv_multiplication_" + std::to_string(SIDE),
+    // multiplication, true, true);
 
     ml::matrix_t<T> identity{rng};
     ml::eye(q, identity);
     ml::matrix_t<T> diff{rng};
     ml::sycl_copy(q, identity, diff);
     ml::mat_inplace_binary_op(q, diff, multiplication, std::minus<T>());
-    //ml::write_bmp_grayscale("tri_inv_diff_" + std::to_string(SIDE), diff, true, true);
+    // ml::write_bmp_grayscale("tri_inv_diff_" + std::to_string(SIDE), diff,
+    // true, true);
 
     diff.set_final_data(host_diff.data());
     clear_eigen_device();

@@ -16,18 +16,19 @@
 #ifndef EXAMPLE_SRC_MNIST_READ_MNIST_HPP
 #define EXAMPLE_SRC_MNIST_READ_MNIST_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <string>
-#include <iostream>
 #include <fstream>
-#include <algorithm>
+#include <iostream>
+#include <string>
 
 #include "ml/utils/memory_helper.hpp"
 
 /*
  * Load the MNIST data set: http://yann.lecun.com/exdb/mnist/
- * The functions read *ubyte files meaning the .gz files have to be decompressed (handled by CMake)
+ * The functions read *ubyte files meaning the .gz files have to be decompressed
+ * (handled by CMake)
  */
 
 // Convert from little to big endian.
@@ -37,9 +38,7 @@ static uint32_t reverse_int(uint32_t i) {
   unsigned char c3 = (i >> 16) & 255;
   unsigned char c4 = (i >> 24) & 255;
 
-  return ((uint32_t)c1 << 24) +
-         ((uint32_t)c2 << 16) +
-         ((uint32_t)c3 << 8) +
+  return ((uint32_t) c1 << 24) + ((uint32_t) c2 << 16) + ((uint32_t) c3 << 8) +
          c4;
 }
 
@@ -50,12 +49,16 @@ static void read_int(std::ifstream& file, uint32_t& i) {
 
 // Return the closest power of 2 higher or equal to x
 template <class T>
-static inline T to_pow2(T x) { return std::pow(2, std::ceil(std::log2(x))); }
+static inline T to_pow2(T x) {
+  return std::pow(2, std::ceil(std::log2(x)));
+}
 
 template <class T>
 struct static_cast_func {
   template <class U>
-  T operator()(const U& x) const { return static_cast<T>(x); }
+  T operator()(const U& x) const {
+    return static_cast<T>(x);
+  }
 };
 
 static std::ifstream open_mnist_file(const std::string& full_path) {
@@ -67,16 +70,21 @@ static std::ifstream open_mnist_file(const std::string& full_path) {
     other_full_path[other_full_path.size() - 6] = '.';
     file = std::ifstream(other_full_path, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
-      std::cerr << "Cannot open file `" << full_path << "` nor `" << other_full_path << "`" << std::endl;
+      std::cerr << "Cannot open file `" << full_path << "` nor `"
+                << other_full_path << "`" << std::endl;
     }
   }
   return file;
 }
 
-// Read mnist, cast uchar to type T and transpose it (so that an image is a column)
+// Read mnist, cast uchar to type T and transpose it (so that an image is a
+// column)
 template <class T>
-std::shared_ptr<T> read_mnist_images(const std::string& full_path, unsigned& image_size, unsigned& padded_image_size,
-                                     unsigned& nb_images, bool transpose, bool round_pow2, T norm_factor = 1) {
+std::shared_ptr<T> read_mnist_images(const std::string& full_path,
+                                     unsigned& image_size,
+                                     unsigned& padded_image_size,
+                                     unsigned& nb_images, bool transpose,
+                                     bool round_pow2, T norm_factor = 1) {
   std::ifstream file = open_mnist_file(full_path);
   if (!file.is_open())
     return nullptr;
@@ -114,15 +122,19 @@ std::shared_ptr<T> read_mnist_images(const std::string& full_path, unsigned& ima
   if (transpose) {
     for (unsigned c = 0; c < nb_images; ++c)
       for (unsigned r = 0; r < image_size; ++r)
-        dataset[r * nb_images + c] = static_cast<T>(buffer[c * image_size + r]) / norm_factor;  // cast and transpose
-    if (round_pow2) // Set all zeros in the end
-      std::memset(&dataset[image_size * nb_images], 0, (padded_image_size - image_size) * nb_images * sizeof(T));
-  }
-  else {
+        dataset[r * nb_images + c] =
+            static_cast<T>(buffer[c * image_size + r]) /
+            norm_factor;  // cast and transpose
+    if (round_pow2)       // Set all zeros in the end
+      std::memset(&dataset[image_size * nb_images], 0,
+                  (padded_image_size - image_size) * nb_images * sizeof(T));
+  } else {
     for (unsigned r = 0; r < nb_images; ++r) {
       for (unsigned c = 0; c < image_size; ++c)
-        dataset[r * padded_image_size + c] = static_cast<T>(buffer[r * image_size + c]) / norm_factor;  // cast
-      std::memset(&dataset[r * padded_image_size + image_size], 0, (padded_image_size - image_size) * sizeof(T));
+        dataset[r * padded_image_size + c] =
+            static_cast<T>(buffer[r * image_size + c]) / norm_factor;  // cast
+      std::memset(&dataset[r * padded_image_size + image_size], 0,
+                  (padded_image_size - image_size) * sizeof(T));
     }
   }
 
@@ -131,7 +143,8 @@ std::shared_ptr<T> read_mnist_images(const std::string& full_path, unsigned& ima
 }
 
 template <class T>
-std::shared_ptr<T> read_mnist_labels(const std::string& full_path, unsigned& nb_labels) {
+std::shared_ptr<T> read_mnist_labels(const std::string& full_path,
+                                     unsigned& nb_labels) {
   std::ifstream file = open_mnist_file(full_path);
   if (!file.is_open())
     return nullptr;
@@ -173,4 +186,4 @@ inline std::string mnist_get_test_labels_path(const std::string& prefix) {
   return prefix + "/t10k-labels-idx1-ubyte";
 }
 
-#endif //EXAMPLE_SRC_MNIST_READ_MNIST_HPP
+#endif  // EXAMPLE_SRC_MNIST_READ_MNIST_HPP

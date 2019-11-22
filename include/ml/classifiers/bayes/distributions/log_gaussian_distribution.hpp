@@ -16,12 +16,11 @@
 #ifndef INCLUDE_ML_CLASSIFIERS_BAYES_DISTRIBUTIONS_LOG_GAUSSIAN_DISTRIBUTION_HPP
 #define INCLUDE_ML_CLASSIFIERS_BAYES_DISTRIBUTIONS_LOG_GAUSSIAN_DISTRIBUTION_HPP
 
+#include "ml/math/helper.hpp"
 #include "ml/math/qr.hpp"
 #include "ml/math/tri_solve.hpp"
-#include "ml/math/helper.hpp"
 
-namespace ml
-{
+namespace ml {
 
 class ml_gd_normalize_r;
 class ml_gd_normalize_random_r;
@@ -30,12 +29,13 @@ class ml_gd_get_plx_data;
 /**
  * @brief Log of a Gaussian Distribution
  *
- * Used both to compute the parameters of such a distribution (i.e. the average and the covariance matrix) and
- * to compute a probability given these parameters.
+ * Used both to compute the parameters of such a distribution (i.e. the average
+ * and the covariance matrix) and to compute a probability given these
+ * parameters.
  *
- * Instead of computing the covariance matrix C, the R of the qr decomposition is computed.
- * This allow to compute the inverse of C faster (because R is triangular) and with less errors.
- * This is possible because for a dataset A:\n
+ * Instead of computing the covariance matrix C, the R of the qr decomposition
+ * is computed. This allow to compute the inverse of C faster (because R is
+ * triangular) and with less errors. This is possible because for a dataset A:\n
  * \f$
  * A = Q * R \\
  * C = (A' * A) / N \\
@@ -44,14 +44,15 @@ class ml_gd_get_plx_data;
  * \f$
  * \n Because Q is orthogonal
  *
- * Then there is no need to compute the upper Cholesky decomposition U of C to invert C because
- * U = R / sqrt(N) assuming that all values on the diagonal of R are positive.
+ * Then there is no need to compute the upper Cholesky decomposition U of C to
+ * invert C because U = R / sqrt(N) assuming that all values on the diagonal of
+ * R are positive.
  *
  * @tparam T
  */
 template <class T>
 class log_gaussian_distribution {
-public:
+ public:
   using DataType = T;
   static const T LOG_2_PI;
 
@@ -59,18 +60,21 @@ public:
    * @brief Compute the parameters of a Gaussian Distribution
    *
    * @param q
-   * @param[in] act_data is modified during this call and shouldn't be used afterward
+   * @param[in] act_data is modified during this call and shouldn't be used
+   * afterward
    * @param[out] data_avg
    * @param[out] act_r R such that C=R'.R
    * @param[out] log_cov_det log of the determinant of C
    * @param[in] weight by default is the number of observation given
    * @param[in] plx_k optional vector used to give a weight to each observation
    */
-  void compute(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg, matrix_t<T>& act_r, T& log_cov_det,
-               T weight, vector_t<T>& plx_k) {
+  void compute(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg,
+               matrix_t<T>& act_r, T& log_cov_det, T weight,
+               vector_t<T>& plx_k) {
     bool use_plx = plx_k.get_count() >= access_ker_dim(act_data, 0);
-    matrix_t<T> plx_data(use_plx ? act_data.data_range : range<2>(),
-                         use_plx ? act_data.kernel_range : nd_range<2>(range<2>(), range<2>()));
+    matrix_t<T> plx_data(
+        use_plx ? act_data.data_range : range<2>(),
+        use_plx ? act_data.kernel_range : nd_range<2>(range<2>(), range<2>()));
     if (use_plx)
       get_plx_data(q, act_data, plx_k, plx_data, functors::identity<T>());
     matrix_t<T>& data = use_plx ? plx_data : act_data;
@@ -88,19 +92,23 @@ public:
     T factor = 1 / std::sqrt(weight);
     q.submit([&](handler& cgh) {
       auto old_r_acc = data.template get_access_2d<access::mode::read>(cgh);
-      auto new_r_acc = act_r.template get_access_2d<access::mode::discard_write>(cgh);
-      cgh.parallel_for<NameGen<0, ml_gd_normalize_r, T>>(act_r.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global_id(0);
-        auto col = item.get_global_id(1);
-        new_r_acc(row, col) = (col >= row) ? old_r_acc(row, col) * factor : 0;
-      });
+      auto new_r_acc =
+          act_r.template get_access_2d<access::mode::discard_write>(cgh);
+      cgh.parallel_for<NameGen<0, ml_gd_normalize_r, T>>(
+          act_r.get_nd_range(), [=](nd_item<2> item) {
+            auto row = item.get_global_id(0);
+            auto col = item.get_global_id(1);
+            new_r_acc(row, col) =
+                (col >= row) ? old_r_acc(row, col) * factor : 0;
+          });
     });
 
     log_cov_det = get_log_cov_det(q, act_r);
   }
 
   /**
-   * @brief Compute the log of the probability of the given data with the computed parameters.
+   * @brief Compute the log of the probability of the given data with the
+   * computed parameters.
    *
    * Uses the multivariate Gaussian formula.
    *
@@ -112,8 +120,9 @@ public:
    * @param[out] dist
    * @param data_dim
    */
-  void compute_dist(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg, matrix_t<T>& act_r, T log_cov_det,
-                    vector_t<T>& dist, eig_index_t data_dim) {
+  void compute_dist(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg,
+                    matrix_t<T>& act_r, T log_cov_det, vector_t<T>& dist,
+                    eig_index_t data_dim) {
     assert_less_or_eq(access_ker_dim(act_data, 0), dist.get_count());
 
     matrix_t<T> center_data(act_data.data_range, act_data.kernel_range);
@@ -135,8 +144,8 @@ public:
    *
    * @param q
    * @param[in] data_sample sample used for \p data_avg
-   * @param percent_rnd value in [0, 1] determining how much the \p data_avg is random. The complement is used for the
-   *                    given sample
+   * @param percent_rnd value in [0, 1] determining how much the \p data_avg is
+   * random. The complement is used for the given sample
    * @param[in] offset_noise offset noise for \p data_avg
    * @param[in] range_noise range noise for \p data_avg
    * @param[out] data_avg
@@ -156,8 +165,10 @@ public:
       auto eig_range_noise = sycl_to_eigen(range_noise);
 
       auto eig_raw_rnd = eig_data_avg.tensor().template random<UniformRandom>();
-      auto eig_rnd_mu = eig_range_noise.tensor() * eig_raw_rnd + eig_offset_noise.tensor();
-      eig_data_avg.device() = eig_data_sample.tensor() * (1 - percent_rnd) + eig_rnd_mu * percent_rnd;
+      auto eig_rnd_mu =
+          eig_range_noise.tensor() * eig_raw_rnd + eig_offset_noise.tensor();
+      eig_data_avg.device() = eig_data_sample.tensor() * (1 - percent_rnd) +
+                              eig_rnd_mu * percent_rnd;
     }
 
     randomize_r(q, act_r);
@@ -165,7 +176,7 @@ public:
     log_cov_det = get_log_cov_det(q, act_r);
   }
 
-private:
+ private:
   /**
    * @brief Get the data modified by op(plx).
    *
@@ -177,23 +188,27 @@ private:
    * @param op
    */
   template <class Op>
-  void get_plx_data(queue& q, matrix_t<T>& data, vector_t<T>& plx_k, matrix_t<T>& plx_data, Op op) {
+  void get_plx_data(queue& q, matrix_t<T>& data, vector_t<T>& plx_k,
+                    matrix_t<T>& plx_data, Op op) {
     q.submit([&](handler& cgh) {
       auto data_acc = data.template get_access_2d<access::mode::read>(cgh);
       auto plx_acc = plx_k.template get_access_1d<access::mode::read>(cgh);
-      auto plx_data_acc = plx_data.template get_access_2d<access::mode::discard_write>(cgh);
-      cgh.parallel_for<NameGen<0, ml_gd_get_plx_data, T, Op>>(plx_data.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global_id(0);
-        auto col = item.get_global_id(1);
-        plx_data_acc(row, col) = data_acc(row, col) * op(plx_acc(row));
-      });
+      auto plx_data_acc =
+          plx_data.template get_access_2d<access::mode::discard_write>(cgh);
+      cgh.parallel_for<NameGen<0, ml_gd_get_plx_data, T, Op>>(
+          plx_data.get_nd_range(), [=](nd_item<2> item) {
+            auto row = item.get_global_id(0);
+            auto col = item.get_global_id(1);
+            plx_data_acc(row, col) = data_acc(row, col) * op(plx_acc(row));
+          });
     });
   }
 
   /**
    * @brief Compute the log of the determinant of C from the R matrix.
    *
-   * \f$ log(det(C)) = log(det(R)^2) = log(prod(diag(R))^2) = 2 * sum(log(abs(diag(R)))) \f$
+   * \f$ log(det(C)) = log(det(R)^2) = log(prod(diag(R))^2) = 2 *
+   * sum(log(abs(diag(R)))) \f$
    *
    * @param q
    * @param act_r
@@ -208,8 +223,8 @@ private:
   /**
    * @brief Randomize the R matrix.
    *
-   * The constants used here are to make the randomized matrix looks like a real R matrix.
-   * It also makes sure the determinant is not too close to 0.
+   * The constants used here are to make the randomized matrix looks like a real
+   * R matrix. It also makes sure the determinant is not too close to 0.
    *
    * @param q
    * @param[out] act_r
@@ -222,18 +237,22 @@ private:
     }
 
     q.submit([&](handler& cgh) {
-      auto act_r_acc = act_r.template get_access_2d<access::mode::read_write>(cgh);
-      cgh.parallel_for<NameGen<0, ml_gd_normalize_random_r, T>>(act_r.get_nd_range(), [=](nd_item<2> item) {
-        auto row = item.get_global_id(0);
-        auto col = item.get_global_id(1);
-        auto& act_rc = act_r_acc(row, col);
-        if (row > col)
-          act_rc = 0;
-        else if (row < col)
-          act_rc = (act_rc * 3 - 1.5) / (cl::sycl::sqrt(static_cast<T>(row * col)) + 1);
-        else
-          act_rc = (((act_rc - 0.5) >= 0) * 2 - 1) * (act_rc + 0.5 + T(1) / (row + 1));
-      });
+      auto act_r_acc =
+          act_r.template get_access_2d<access::mode::read_write>(cgh);
+      cgh.parallel_for<NameGen<0, ml_gd_normalize_random_r, T>>(
+          act_r.get_nd_range(), [=](nd_item<2> item) {
+            auto row = item.get_global_id(0);
+            auto col = item.get_global_id(1);
+            auto& act_rc = act_r_acc(row, col);
+            if (row > col)
+              act_rc = 0;
+            else if (row < col)
+              act_rc = (act_rc * 3 - 1.5) /
+                       (cl::sycl::sqrt(static_cast<T>(row * col)) + 1);
+            else
+              act_rc = (((act_rc - 0.5) >= 0) * 2 - 1) *
+                       (act_rc + 0.5 + T(1) / (row + 1));
+          });
     });
   }
 };
@@ -249,14 +268,18 @@ const T log_gaussian_distribution<T>::LOG_2_PI = std::log(2 * ml::PI<T>);
  */
 template <class T>
 class buffered_log_gaussian_distribution : public log_gaussian_distribution<T> {
-public:
-  buffered_log_gaussian_distribution() :
-      _data_dim(), _nb_obs_rng(), _nb_obs_pow2_rng(_nb_obs_rng, _nb_obs_rng),
-      _data_avg(), _act_r(), _log_cov_det()
-  {}
+ public:
+  buffered_log_gaussian_distribution()
+      : _data_dim(),
+        _nb_obs_rng(),
+        _nb_obs_pow2_rng(_nb_obs_rng, _nb_obs_rng),
+        _data_avg(),
+        _act_r(),
+        _log_cov_det() {}
 
   void init(const range<1>& data_dim_rng, const nd_range<1>& data_dim_pow2_rng,
-            const range<2>& data_dim_rng_d2, const nd_range<2>& data_dim_pow2_rng_d2) {
+            const range<2>& data_dim_rng_d2,
+            const nd_range<2>& data_dim_pow2_rng_d2) {
     _data_dim = data_dim_rng[0];
 
     _fake_plx_k = vector_t<T>(range<1>());
@@ -268,22 +291,27 @@ public:
     compute(q, act_data, access_data_dim(act_data, 0), _fake_plx_k);
   }
 
-  inline void compute(queue& q, matrix_t<T>& act_data, T weight, vector_t<T>& plx_k) {
-    log_gaussian_distribution<T>::compute(q, act_data, _data_avg, _act_r, _log_cov_det, weight, plx_k);
+  inline void compute(queue& q, matrix_t<T>& act_data, T weight,
+                      vector_t<T>& plx_k) {
+    log_gaussian_distribution<T>::compute(q, act_data, _data_avg, _act_r,
+                                          _log_cov_det, weight, plx_k);
   }
 
   inline void compute_dist(queue& q, matrix_t<T>& act_data, vector_t<T>& dist) {
-    log_gaussian_distribution<T>::compute_dist(q, act_data, _data_avg, _act_r, _log_cov_det, dist, _data_dim);
+    log_gaussian_distribution<T>::compute_dist(q, act_data, _data_avg, _act_r,
+                                               _log_cov_det, dist, _data_dim);
   }
 
   inline void randomize(queue& q, vector_t<T>& data_sample, T percent_rnd,
                         vector_t<T>& offset_noise, vector_t<T>& range_noise) {
-    log_gaussian_distribution<T>::randomize(q, data_sample, percent_rnd, offset_noise, range_noise,
-                                          _data_avg, _act_r, _log_cov_det);
+    log_gaussian_distribution<T>::randomize(q, data_sample, percent_rnd,
+                                            offset_noise, range_noise,
+                                            _data_avg, _act_r, _log_cov_det);
   }
 
-  inline void randomize(queue& q, buffered_log_gaussian_distribution<T>& other, T percent_rnd,
-                        vector_t<T>& offset_noise, vector_t<T>& range_noise) {
+  inline void randomize(queue& q, buffered_log_gaussian_distribution<T>& other,
+                        T percent_rnd, vector_t<T>& offset_noise,
+                        vector_t<T>& range_noise) {
     randomize(q, other._data_avg, percent_rnd, offset_noise, range_noise);
   }
 
@@ -299,7 +327,7 @@ public:
     save_array(&_log_cov_det, 1, prefix + "_log_cov_det");
   }
 
-private:
+ private:
   eig_index_t _data_dim;
   range<1> _nb_obs_rng;
   nd_range<1> _nb_obs_pow2_rng;
@@ -310,6 +338,6 @@ private:
   T _log_cov_det;
 };
 
-}
+}  // namespace ml
 
-#endif //INCLUDE_ML_CLASSIFIERS_BAYES_DISTRIBUTIONS_LOG_GAUSSIAN_DISTRIBUTION_HPP
+#endif  // INCLUDE_ML_CLASSIFIERS_BAYES_DISTRIBUTIONS_LOG_GAUSSIAN_DISTRIBUTION_HPP

@@ -18,8 +18,7 @@
 
 #include "ml/math/vec_ops.hpp"
 
-namespace ml
-{
+namespace ml {
 
 class ml_qr;
 
@@ -29,10 +28,11 @@ class ml_qr;
  * Uses the Householder transformations algorithm.
  * Note: A blocked Householder would be more performant.
  *
- * qr(A) computes Q and R such that A = Q * R where Q is an orthogonal matrix and R an upper triangular matrix.
- * This implementation assumes that m is greater than n and only writes R in the upper triangular part of A.
- * The lower triangular part of R should be set to 0 if needed.
- * Note that for each row of R a sign can be chosen, this implementation always chooses 1.
+ * qr(A) computes Q and R such that A = Q * R where Q is an orthogonal matrix
+ * and R an upper triangular matrix. This implementation assumes that m is
+ * greater than n and only writes R in the upper triangular part of A. The lower
+ * triangular part of R should be set to 0 if needed. Note that for each row of
+ * R a sign can be chosen, this implementation always chooses 1.
  *
  * @tparam T
  * @param q
@@ -42,7 +42,8 @@ class ml_qr;
  * @param eps threshold below which the division by u1 is avoided.
  */
 template <class T>
-void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps = 1E-5) {
+void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
+        T eps = 1E-5) {
   auto m = access_ker_dim(mat, 0);
   auto n = access_ker_dim(mat, 1);
   using IndexT = decltype(n);
@@ -67,23 +68,29 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
   eig_dsize_t<1> slice_extents_d1;
   eig_dsize_t<2> slice_offsets_mat;
   eig_dsize_t<2> slice_extents_mat;
-  eig_dsize_t<2> slice_offsets_w {0, 0};
-  eig_dsize_t<2> slice_extents_w {1, 1};
-  eig_dsize_t<2> slice_offsets_vec_buf {0, 0};
-  eig_dsize_t<2> slice_extents_vec_buf {1, 1};
+  eig_dsize_t<2> slice_offsets_w{0, 0};
+  eig_dsize_t<2> slice_extents_w{1, 1};
+  eig_dsize_t<2> slice_offsets_vec_buf{0, 0};
+  eig_dsize_t<2> slice_extents_vec_buf{1, 1};
 
   auto compute_acts = [&](IndexT j) {
     jj_offset = j * (n + 1);
     // Get elements with indices [j, m] of the jth column and take the norm
     slice_offsets_d1[0] = j;
     slice_extents_d1[0] = m - j;
-    eig_norm.device() = eig_mat.tensor().chip(j, 1).slice(slice_offsets_d1, slice_extents_d1).square().sum().sqrt();
+    eig_norm.device() = eig_mat.tensor()
+                            .chip(j, 1)
+                            .slice(slice_offsets_d1, slice_extents_d1)
+                            .square()
+                            .sum()
+                            .sqrt();
     act_norm = norm_buf.read_to_host(0);
 
     T host_mat_jj = mat.read_to_host(jj_offset);
     // At each iteration the sign can be chosen to be different.
-    // Choosing it to be -sign(mat(j,j)) maximizes the value of u1 but is more likely to cause division by zero
-    act_sign = 1;//-cl::sycl::sign(host_mat_jj);
+    // Choosing it to be -sign(mat(j,j)) maximizes the value of u1 but is more
+    // likely to cause division by zero
+    act_sign = 1;  //-cl::sycl::sign(host_mat_jj);
     act_u1 = host_mat_jj - act_sign * act_norm;
     act_tau = -act_sign * act_u1 / act_norm;
   };
@@ -137,9 +144,12 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
     slice_extents_mat[0] = nb_rows_ker;
     slice_extents_mat[1] = n - j - 1;
     auto sliced_w = eig_w.tensor().slice(slice_offsets_w, slice_extents_w);
-    auto sliced_vec_buf = eig_vec_buf.tensor().slice(slice_offsets_vec_buf, slice_extents_vec_buf);
-    auto sliced_mat = eig_mat.tensor().slice(slice_offsets_mat, slice_extents_mat);
-    sliced_vec_buf.device(get_eigen_device()) = sliced_mat.contract(sliced_w, get_contract_dim<ROW, ROW>());
+    auto sliced_vec_buf = eig_vec_buf.tensor().slice(slice_offsets_vec_buf,
+                                                     slice_extents_vec_buf);
+    auto sliced_mat =
+        eig_mat.tensor().slice(slice_offsets_mat, slice_extents_mat);
+    sliced_vec_buf.device(get_eigen_device()) =
+        sliced_mat.contract(sliced_w, get_contract_dim<ROW, ROW>());
 
     // Update R
     q.submit([&](handler& cgh) {
@@ -150,7 +160,8 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
         auto row = item.get_global_id(0);
         auto col = item.get_global_id(1);
         if (row < m - j && col < n - j - 1)
-          mat_acc(j + row, j + 1 + col) -= (act_tau * w_acc(row)) * vec_acc(col);
+          mat_acc(j + row, j + 1 + col) -=
+              (act_tau * w_acc(row)) * vec_acc(col);
       });
     });
   }
@@ -166,10 +177,12 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf, T eps 
  * @param q
  * @param[in, out] mat
  * @param data_dim_rng 1d range of the size of an observation
- * @param data_dim_pow2_rng 1d kernel range of the size of an observation (can be padded to a bigger power of 2)
+ * @param data_dim_pow2_rng 1d kernel range of the size of an observation (can
+ * be padded to a bigger power of 2)
  */
 template <class T>
-void qr(queue& q, matrix_t<T>& mat, const range<1>& data_dim_rng, const nd_range<1>& data_dim_pow2_rng) {
+void qr(queue& q, matrix_t<T>& mat, const range<1>& data_dim_rng,
+        const nd_range<1>& data_dim_pow2_rng) {
   range<1> nb_obs_rng(access_ker_dim(mat, 0));
   auto nb_obs_pow2_rng = get_optimal_nd_range(nb_obs_rng);
   vector_t<T> w_buf(nb_obs_rng, nb_obs_pow2_rng);
@@ -181,7 +194,8 @@ void qr(queue& q, matrix_t<T>& mat, const range<1>& data_dim_rng, const nd_range
 /**
  * @brief QR decomposition of the given matrix.
  *
- * @see qr(queue&, matrix_t<T>&, const range<1>&, const nd_range<1>&, const range<1>&, const nd_range<1>&)
+ * @see qr(queue&, matrix_t<T>&, const range<1>&, const nd_range<1>&, const
+ * range<1>&, const nd_range<1>&)
  * @tparam T
  * @param q
  * @param[in, out] mat
@@ -193,6 +207,6 @@ void qr(queue& q, matrix_t<T>& mat) {
   qr(q, mat, data_dim_rng, data_dim_pow2_rng);
 }
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_MATH_QR_HPP
+#endif  // INCLUDE_ML_MATH_QR_HPP

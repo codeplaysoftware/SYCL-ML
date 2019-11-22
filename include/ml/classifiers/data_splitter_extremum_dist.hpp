@@ -19,8 +19,7 @@
 #include "ml/classifiers/data_splitter.hpp"
 #include "ml/classifiers/extremum_dist.hpp"
 
-namespace ml
-{
+namespace ml {
 
 /**
  * @brief Abstract class regrouping the data_splitter and extremum_dist classes.
@@ -30,13 +29,15 @@ namespace ml
  * @tparam Compare minimize or maximize the computed distance
  */
 template <class DataT, class LabelT, extremum_dist_compare Compare = LESS>
-class data_splitter_extremum_dist : public data_splitter<DataT, LabelT>, public extremum_dist<DataT, LabelT, Compare> {
-protected:
+class data_splitter_extremum_dist
+    : public data_splitter<DataT, LabelT>
+    , public extremum_dist<DataT, LabelT, Compare> {
+ protected:
   inline virtual void train_setup_for_each_label(queue&) override {
     this->_predict_data_dim_assert = this->_data_dim;
   }
 };
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_CLASSIFIERS_DATA_SPLITTER_MIN_DIST_HPP
+#endif  // INCLUDE_ML_CLASSIFIERS_DATA_SPLITTER_MIN_DIST_HPP

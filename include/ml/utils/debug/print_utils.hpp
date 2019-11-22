@@ -15,7 +15,8 @@
  */
 /**
  * @file
- * @brief Allow to print generic array, std pair as well as sycl id, range and nd_range
+ * @brief Allow to print generic array, std pair as well as sycl id, range and
+ * nd_range
  */
 
 #ifndef INCLUDE_ML_UTILS_DEBUG_PRINT_UTILS_HPP
@@ -26,8 +27,7 @@
 
 #include "ml/utils/sycl_types.hpp"
 
-namespace ml
-{
+namespace ml {
 
 /**
  * @brief Print std::pair
@@ -88,7 +88,8 @@ std::ostream& operator<<(std::ostream& os, const cl::sycl::range<DIM>& r) {
  */
 template <int DIM>
 std::ostream& operator<<(std::ostream& os, const cl::sycl::nd_range<DIM>& r) {
-  return os << r.get_global_range() << "@" << r.get_local_range() << "@" << r.get_offset();
+  return os << r.get_global_range() << "@" << r.get_local_range() << "@"
+            << r.get_offset();
 }
 
 /**
@@ -103,7 +104,8 @@ std::ostream& operator<<(std::ostream& os, const cl::sycl::nd_range<DIM>& r) {
  * @return os
  */
 template <class T>
-std::ostream& print(std::ostream& os, const T& data, size_t nrows, size_t ncols, size_t off = 0) {
+std::ostream& print(std::ostream& os, const T& data, size_t nrows, size_t ncols,
+                    size_t off = 0) {
   for (size_t r = 0; r < nrows; ++r) {
     for (size_t c = 0; c < ncols; ++c) {
       os << data[r * ncols + c + off] << ' ';
@@ -129,6 +131,6 @@ std::ostream& print(const T& data, size_t nrows, size_t ncols, size_t off = 0) {
   return print(std::cout, data, nrows, ncols, off);
 }
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_UTILS_DEBUG_PRINT_UTILS_HPP
+#endif  // INCLUDE_ML_UTILS_DEBUG_PRINT_UTILS_HPP

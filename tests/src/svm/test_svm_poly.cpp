@@ -21,17 +21,14 @@
 template <class DataT, class LabelT>
 void test_svm_poly() {
   /*
-   * Solves the XOR problem, kernel has to be at least polynomial or more complex.
-   *   y  0  1
+   * Solves the XOR problem, kernel has to be at least polynomial or more
+   * complex. y  0  1
    * x
    * 0    0  1
    * 1    1  0
    */
-  std::array<DataT, 8> host_data {0, 0,
-                                  0, 1,
-                                  1, 0,
-                                  1, 1};
-  std::array<LabelT, 4> host_labels {0, 1, 1, 0};
+  std::array<DataT, 8> host_data{0, 0, 0, 1, 1, 0, 1, 1};
+  std::array<LabelT, 4> host_labels{0, 1, 1, 0};
   std::shared_ptr<DataT> host_alphas;
   DataT host_rho;
 
@@ -61,8 +58,10 @@ void test_svm_poly() {
   std::cout << "\nrho: " << host_rho << std::endl;
   */
 
-  std::array<DataT, 4> expected_alphas {-3.332425, 2.665940, 2.665940, -1.999455};
-  assert_vec_almost_eq(host_alphas.get(), expected_alphas.data(), expected_alphas.size(), DataT(1E-3));
+  std::array<DataT, 4> expected_alphas{-3.332425, 2.665940, 2.665940,
+                                       -1.999455};
+  assert_vec_almost_eq(host_alphas.get(), expected_alphas.data(),
+                       expected_alphas.size(), DataT(1E-3));
   assert_almost_eq(host_rho, DataT(-0.999728), DataT(1E-3));
 }
 
@@ -78,4 +77,3 @@ int main() {
 
   return 0;
 }
-

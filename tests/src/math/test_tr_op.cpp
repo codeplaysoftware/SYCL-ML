@@ -24,9 +24,9 @@ void test_lin_tr_inplace_mat_op() {
   static constexpr size_t M = 10;
   static constexpr size_t N = 2;
 
-  std::array<T, M*N> m1;
-  std::array<T, M*N> expected_m1;
-  std::array<T, N*M> m2;
+  std::array<T, M * N> m1;
+  std::array<T, M * N> expected_m1;
+  std::array<T, N * M> m2;
 
   srand(time(0));
   static constexpr T MAX = 1E2;
@@ -43,10 +43,11 @@ void test_lin_tr_inplace_mat_op() {
   {
     cl::sycl::queue& q = create_queue();
     ml::matrix_t<T> m1_buffer(m1.data(), cl::sycl::range<2>(M, N));
-    ml::matrix_t<T> m2_buffer(m2.data(), cl::sycl::range<2>(N, M)); // TR
+    ml::matrix_t<T> m2_buffer(m2.data(), cl::sycl::range<2>(N, M));  // TR
     m2_buffer.set_final_data(nullptr);
 
-    ml::mat_inplace_binary_op<ml::LIN, ml::TR>(q, m1_buffer, m2_buffer, std::multiplies<T>());
+    ml::mat_inplace_binary_op<ml::LIN, ml::TR>(q, m1_buffer, m2_buffer,
+                                               std::multiplies<T>());
     clear_eigen_device();
   }
 
@@ -58,9 +59,9 @@ void test_tr_lin_inplace_mat_op() {
   static constexpr size_t M = 2;
   static constexpr size_t N = 10;
 
-  std::array<T, M*N> m1;
-  std::array<T, M*N> expected_m1;
-  std::array<T, N*M> m2;
+  std::array<T, M * N> m1;
+  std::array<T, M * N> expected_m1;
+  std::array<T, N * M> m2;
 
   srand(time(0));
   static constexpr T MAX = 1E2;
@@ -80,7 +81,8 @@ void test_tr_lin_inplace_mat_op() {
     ml::matrix_t<T> m2_buffer(m2.data(), cl::sycl::range<2>(N, M));
     m2_buffer.set_final_data(nullptr);
 
-    ml::mat_inplace_binary_op<ml::TR, ml::LIN>(q, m1_buffer, m2_buffer, std::multiplies<T>());
+    ml::mat_inplace_binary_op<ml::TR, ml::LIN>(q, m1_buffer, m2_buffer,
+                                               std::multiplies<T>());
     clear_eigen_device();
   }
 

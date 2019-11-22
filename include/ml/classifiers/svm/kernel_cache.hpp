@@ -17,17 +17,15 @@
 #define INCLUDE_ML_CLASSIFIERS_SVM_KERNEL_CACHE_HPP
 
 #include <list>
-#include <vector>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 #include "ml/classifiers/svm/svm_kernels.hpp"
 
-namespace ml
-{
+namespace ml {
 
-namespace detail
-{
+namespace detail {
 
 /**
  * @brief Cache either the whole kernel matrix or only the last used ones.
@@ -37,9 +35,14 @@ namespace detail
  */
 template <class KerFun, class T>
 class kernel_cache {
-public:
-  kernel_cache(queue& q, const KerFun& ker, matrix_t<T>& x, const range<1>& data_rng, const nd_range<1>& ker_rng) :
-      _q(q), _ker(ker), _x(x), _ker_diag_buf(data_rng, ker_rng), _host_ker_diag(_ker_diag_buf, range<1>(0), id<1>(0)) {
+ public:
+  kernel_cache(queue& q, const KerFun& ker, matrix_t<T>& x,
+               const range<1>& data_rng, const nd_range<1>& ker_rng)
+      : _q(q),
+        _ker(ker),
+        _x(x),
+        _ker_diag_buf(data_rng, ker_rng),
+        _host_ker_diag(_ker_diag_buf, range<1>(0), id<1>(0)) {
     // Compute the diagonal values of ker only once
     ker(q, x, _ker_diag_buf);
     auto m = access_ker_dim(x, 0);
@@ -55,29 +58,33 @@ public:
   inline vector_t<T>& get_ker_diag() { return _ker_diag_buf; }
   inline T get_ker_diag(SYCLIndexT row) { return _host_ker_diag[row]; }
 
-protected:
+ protected:
   queue& _q;
   const KerFun& _ker;
 
   matrix_t<T>& _x;
-  vector_t<T> _ker_diag_buf; // diagonal of kernel matrix
-  accessor<T, 1, access::mode::read, access::target::host_buffer> _host_ker_diag;
+  vector_t<T> _ker_diag_buf;  // diagonal of kernel matrix
+  accessor<T, 1, access::mode::read, access::target::host_buffer>
+      _host_ker_diag;
 };
 
 /**
- * @brief Compute the whole kernel matrix once (if resulting matrix is too big, use kernel_cache_row instead).
+ * @brief Compute the whole kernel matrix once (if resulting matrix is too big,
+ * use kernel_cache_row instead).
  *
  * @tparam KerFun
  * @tparam T
  */
 template <class KerFun, class T>
 class kernel_cache_matrix : public kernel_cache<KerFun, T> {
-public:
-  kernel_cache_matrix(queue& q, const KerFun& ker, matrix_t<T>& x, const range<1>& data_rng, const nd_range<1>& ker_rng) :
-      kernel_cache<KerFun, T>(q, ker, x, data_rng, ker_rng), _ker_mat() {
+ public:
+  kernel_cache_matrix(queue& q, const KerFun& ker, matrix_t<T>& x,
+                      const range<1>& data_rng, const nd_range<1>& ker_rng)
+      : kernel_cache<KerFun, T>(q, ker, x, data_rng, ker_rng), _ker_mat() {
     auto nb_obs = access_ker_dim(x, 0);
     auto padded_nb_obs = get_device_constants()->pad_sub_buffer_size<T>(nb_obs);
-    _ker_mat = matrix_t<T>(range<2>(nb_obs, nb_obs), get_optimal_nd_range(nb_obs, padded_nb_obs));
+    _ker_mat = matrix_t<T>(range<2>(nb_obs, nb_obs),
+                           get_optimal_nd_range(nb_obs, padded_nb_obs));
     ker(q, x, x, _ker_mat);
   }
 
@@ -85,7 +92,7 @@ public:
     return _ker_mat.get_row(row);
   }
 
-private:
+ private:
   matrix_t<T> _ker_mat;
 };
 
@@ -95,26 +102,32 @@ private:
  * Should be used if the kernel matrix is too large.
  *
  * nb_cache_line is the maximum number of kernel line to cache.
- * It should be 2 for simple kernel (linear or polynomial) and grow bigger for more complex kernels.
- * The maximum size of the cache in byte is sizeof(T) * n * nb_cache_line.
+ * It should be 2 for simple kernel (linear or polynomial) and grow bigger for
+ * more complex kernels. The maximum size of the cache in byte is sizeof(T) * n
+ * * nb_cache_line.
  *
  * @tparam KerFun
  * @tparam T
  */
 template <class KerFun, class T>
 class kernel_cache_row : public kernel_cache<KerFun, T> {
-public:
-  kernel_cache_row(queue& q, const KerFun& ker, matrix_t<T>& x, const range<1>& data_rng, const nd_range<1>& ker_rng,
-                 SYCLIndexT nb_cache_line) :
-      kernel_cache<KerFun, T>(q, ker, x, data_rng, ker_rng),
-      _nb_cache_line(nb_cache_line), _ker_cache(), _cache_last_access() {}
+ public:
+  kernel_cache_row(queue& q, const KerFun& ker, matrix_t<T>& x,
+                   const range<1>& data_rng, const nd_range<1>& ker_rng,
+                   SYCLIndexT nb_cache_line)
+      : kernel_cache<KerFun, T>(q, ker, x, data_rng, ker_rng),
+        _nb_cache_line(nb_cache_line),
+        _ker_cache(),
+        _cache_last_access() {}
 
   virtual vector_t<T> get_ker_row(SYCLIndexT row) override {
     auto it = _ker_cache.find(row);
     if (it != _ker_cache.end()) {
       // Move element row to the end
-      auto row_it = std::find(_cache_last_access.begin(), _cache_last_access.end(), row);
-      _cache_last_access.splice(_cache_last_access.end(), _cache_last_access, row_it);
+      auto row_it =
+          std::find(_cache_last_access.begin(), _cache_last_access.end(), row);
+      _cache_last_access.splice(_cache_last_access.end(), _cache_last_access,
+                                row_it);
       return it->second;
     }
 
@@ -129,21 +142,24 @@ public:
       return inserted_it.first->second;
     }
 
-    auto inserted_it = _ker_cache.emplace(std::piecewise_construct, std::forward_as_tuple(row),
-      std::forward_as_tuple(this->_ker_diag_buf.data_range, this->_ker_diag_buf.kernel_range));
+    auto inserted_it = _ker_cache.emplace(
+        std::piecewise_construct, std::forward_as_tuple(row),
+        std::forward_as_tuple(this->_ker_diag_buf.data_range,
+                              this->_ker_diag_buf.kernel_range));
     auto& ker_row = inserted_it.first->second;
     this->_ker(this->_q, this->_x, row, ker_row);
     return ker_row;
   }
 
-private:
+ private:
   SYCLIndexT _nb_cache_line;
-  std::unordered_map<SYCLIndexT, ml::vector_t<T>> _ker_cache; // cached rows of kernel matrix
-  std::list<SYCLIndexT> _cache_last_access; // Indices of last used rows
+  std::unordered_map<SYCLIndexT, ml::vector_t<T>>
+      _ker_cache;                            // cached rows of kernel matrix
+  std::list<SYCLIndexT> _cache_last_access;  // Indices of last used rows
 };
 
-} // detail
+}  // namespace detail
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_CLASSIFIERS_SVM_KERNEL_CACHE_HPP
+#endif  // INCLUDE_ML_CLASSIFIERS_SVM_KERNEL_CACHE_HPP

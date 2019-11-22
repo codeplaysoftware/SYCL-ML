@@ -21,7 +21,7 @@
 template <class T>
 void test_inner_product_self() {
   constexpr size_t SIZE = 4;
-  std::array<T, SIZE> in {1, 0.5, -1, 0};
+  std::array<T, SIZE> in{1, 0.5, -1, 0};
   T res;
 
   {
@@ -44,8 +44,8 @@ void test_inner_product_self() {
 template <class T>
 void test_inner_product_other() {
   constexpr size_t SIZE = 4;
-  std::array<T, SIZE> in1 {1, 2, 3, 4};
-  std::array<T, SIZE> in2 {2, 2, 1, 0.5};
+  std::array<T, SIZE> in1{1, 2, 3, 4};
+  std::array<T, SIZE> in2{2, 2, 1, 0.5};
   T res;
 
   {

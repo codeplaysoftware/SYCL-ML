@@ -21,7 +21,7 @@
 template <class T>
 void test_save_load_host() {
   constexpr size_t SIZE = 4;
-  std::array<T, SIZE> buf {-1, 0, -1.5, 0.5};
+  std::array<T, SIZE> buf{-1, 0, -1.5, 0.5};
   std::array<T, SIZE> res;
 
   ml::save_array(buf.data(), SIZE, "test_buf");
@@ -40,13 +40,14 @@ void test_save_load_host() {
 template <class T>
 void test_save_load_device() {
   constexpr size_t SIZE = 6;
-  std::array<T, SIZE> buf {-10, 0, -1.5, 3, 3, 1};
+  std::array<T, SIZE> buf{-10, 0, -1.5, 3, 3, 1};
   std::array<T, SIZE> res;
 
   {
     cl::sycl::queue& q = create_queue();
     {
-      ml::matrix_t<T> sycl_buf(const_cast<const T*>(buf.data()), cl::sycl::range<2>(2, 3));
+      ml::matrix_t<T> sycl_buf(const_cast<const T*>(buf.data()),
+                               cl::sycl::range<2>(2, 3));
       ml::save_array(q, sycl_buf, "test_buf");
     }
     ml::matrix_t<T> sycl_res(cl::sycl::range<2>(2, 3));
@@ -84,4 +85,3 @@ int main() {
 
   return 0;
 }
-

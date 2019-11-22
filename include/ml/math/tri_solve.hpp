@@ -18,15 +18,13 @@
 
 #include "ml/math/mat_ops.hpp"
 
-namespace ml
-{
+namespace ml {
 
 template <data_dim, data_dim>
 class ml_mat_tri_solve;
 class ml_mat_tri_solve_div_row;
 
-namespace detail
-{
+namespace detail {
 
 template <data_dim D>
 struct tri_solve_data_dim;
@@ -34,7 +32,9 @@ struct tri_solve_data_dim;
 // Upper specific case
 template <>
 struct tri_solve_data_dim<LIN> {
-  static inline SYCLIndexT get_row_idx(SYCLIndexT n, SYCLIndexT i) { return n - i - 1; }
+  static inline SYCLIndexT get_row_idx(SYCLIndexT n, SYCLIndexT i) {
+    return n - i - 1;
+  }
   using get_next_row_idx_op = std::minus<SYCLIndexT>;
   using apply_subtract_condition_op = std::less<SYCLIndexT>;
 };
@@ -48,33 +48,38 @@ struct tri_solve_data_dim<TR> {
 };
 
 template <data_dim DX, class T>
-void div_row(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx, const nd_range<1>& col_ker_rng) {
+void div_row(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx,
+             const nd_range<1>& col_ker_rng) {
   q.submit([&](handler& cgh) {
-    auto a_acc = A.template get_access_2d<access::mode::read>(cgh); // Don't need DA because we only access the diagonal
+    auto a_acc = A.template get_access_2d<access::mode::read>(
+        cgh);  // Don't need DA because we only access the diagonal
     auto x_acc = X.template get_access_2d<access::mode::read_write, DX>(cgh);
-    cgh.parallel_for<NameGen<DX, ml_mat_tri_solve_div_row, T>>(col_ker_rng, [=](nd_item<1> item) {
-      auto col = item.get_global_id(0);
-      x_acc(row_idx, col) /= a_acc(row_idx, row_idx);
-    });
+    cgh.parallel_for<NameGen<DX, ml_mat_tri_solve_div_row, T>>(
+        col_ker_rng, [=](nd_item<1> item) {
+          auto col = item.get_global_id(0);
+          x_acc(row_idx, col) /= a_acc(row_idx, row_idx);
+        });
   });
 }
 
 template <data_dim DA, data_dim DX, class T>
 void compute_x(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx) {
-  const auto apply_subtract_condition = typename detail::tri_solve_data_dim<DA>::apply_subtract_condition_op();
+  const auto apply_subtract_condition =
+      typename detail::tri_solve_data_dim<DA>::apply_subtract_condition_op();
   q.submit([&](handler& cgh) {
     auto a_acc = A.template get_access_2d<access::mode::read, DA>(cgh);
     auto x_acc = X.template get_access_2d<access::mode::read_write, DX>(cgh);
-    cgh.parallel_for<NameGen<0, ml_mat_tri_solve<DA, DX>, T>>(X.get_nd_range(), [=](nd_item<2> item) {
-      auto row = item.get_global_id(DX);
-      auto col = item.get_global_id(opp<DX>());
-      if (apply_subtract_condition(row, row_idx))
-        x_acc(row, col) -= x_acc(row_idx, col) * a_acc(row, row_idx);
-    });
+    cgh.parallel_for<NameGen<0, ml_mat_tri_solve<DA, DX>, T>>(
+        X.get_nd_range(), [=](nd_item<2> item) {
+          auto row = item.get_global_id(DX);
+          auto col = item.get_global_id(opp<DX>());
+          if (apply_subtract_condition(row, row_idx))
+            x_acc(row, col) -= x_acc(row_idx, col) * a_acc(row, row_idx);
+        });
   });
 }
 
-} // detail
+}  // namespace detail
 
 /**
  * @brief Compute X = A \ B = inv(A) * B without explicitly inverting A.
@@ -98,7 +103,8 @@ void tri_solve(queue& q, matrix_t<T>& X, matrix_t<T>& A) {
 
   const auto nb_cols = access_ker_dim<DX>(X, 1);
   const auto col_ker_rng = get_optimal_nd_range(nb_cols);
-  const auto get_next_row_idx = typename detail::tri_solve_data_dim<DA>::get_next_row_idx_op();
+  const auto get_next_row_idx =
+      typename detail::tri_solve_data_dim<DA>::get_next_row_idx_op();
 
   // First iteration can be computed directly
   SYCLIndexT row_idx = detail::tri_solve_data_dim<DA>::get_row_idx(n, 0);
@@ -127,7 +133,8 @@ void tri_solve(queue& q, matrix_t<T>& X, matrix_t<T>& A) {
  * @param[in] B
  */
 template <data_dim DX = LIN, data_dim DA = LIN, class T>
-inline void tri_solve(queue& q, matrix_t<T>& X, matrix_t<T>& A, matrix_t<T>& B) {
+inline void tri_solve(queue& q, matrix_t<T>& X, matrix_t<T>& A,
+                      matrix_t<T>& B) {
   sycl_copy(q, B, X);
   tri_solve<DX, DA>(q, X, A);
 }
@@ -148,6 +155,6 @@ void chol_solve(queue& q, matrix_t<T>& X, matrix_t<T>& A, matrix_t<T>& B) {
   tri_solve<DX, LIN>(q, X, A);
 }
 
-}
+}  // namespace ml
 
-#endif //INCLUDE_ML_MATH_TRI_SOLVE_HPP
+#endif  // INCLUDE_ML_MATH_TRI_SOLVE_HPP

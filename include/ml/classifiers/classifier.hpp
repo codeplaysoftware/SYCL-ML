@@ -16,15 +16,14 @@
 #ifndef INCLUDE_ML_CLASSIFIERS_CLASSIFIER_HPP
 #define INCLUDE_ML_CLASSIFIERS_CLASSIFIER_HPP
 
-#include <vector>
-#include <unordered_map>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+#include <unordered_map>
+#include <vector>
 
 #include "ml/utils/common.hpp"
 
-namespace ml
-{
+namespace ml {
 
 /**
  * @brief Abstract class for all classifiers.
@@ -34,7 +33,7 @@ namespace ml
  */
 template <class DataT, class LabelT>
 class classifier {
-public:
+ public:
   using DataType = DataT;
   using LabelType = LabelT;
 
@@ -44,9 +43,11 @@ public:
    * @param q
    * @param dataset
    * @param labels
-   * @param nb_labels number of different labels, must be set if set_label_set has not been called
+   * @param nb_labels number of different labels, must be set if set_label_set
+   * has not been called
    */
-  virtual void train(queue& q, matrix_t<DataT>& dataset, vector_t<LabelT>& labels, unsigned nb_labels = 0) = 0;
+  virtual void train(queue& q, matrix_t<DataT>& dataset,
+                     vector_t<LabelT>& labels, unsigned nb_labels = 0) = 0;
 
   /**
    * @brief Predict labels with the given observations.
@@ -60,17 +61,21 @@ public:
   /**
    * @brief Print statistics about the predicted labels.
    *
-   * Compute and print the confusion matrix as well as the success rate, precision, recall and F1-score.
+   * Compute and print the confusion matrix as well as the success rate,
+   * precision, recall and F1-score.
    *
    * @param[in] predicted
    * @param[in] expected
    * @param nb_obs
    */
-  static void print_score(const LabelT* predicted, const LabelT* expected, unsigned nb_obs, unsigned nb_labels,
-                          const std::unordered_map<LabelT, unsigned>& label_user_to_label_idx) {
+  static void print_score(
+      const LabelT* predicted, const LabelT* expected, unsigned nb_obs,
+      unsigned nb_labels,
+      const std::unordered_map<LabelT, unsigned>& label_user_to_label_idx) {
     std::vector<unsigned> cm(nb_labels * nb_labels, 0);
     for (unsigned i = 0; i < nb_obs; ++i)
-      cm[label_user_to_label_idx.at(expected[i]) * nb_labels + label_user_to_label_idx.at(predicted[i])] += 1;
+      cm[label_user_to_label_idx.at(expected[i]) * nb_labels +
+         label_user_to_label_idx.at(predicted[i])] += 1;
 
     double success_rate = 0;
     double precision = 0;
@@ -108,7 +113,8 @@ public:
     for (unsigned i = 0; i < nb_labels; ++i) {
       for (unsigned j = 0; j < nb_labels; ++j) {
         if (j < nb_labels - 1)
-          std::cout << std::left << std::setw(5) << cm[i * nb_labels + j] << ' ';
+          std::cout << std::left << std::setw(5) << cm[i * nb_labels + j]
+                    << ' ';
         else
           std::cout << std::left << cm[i * nb_labels + j] << '\n';
       }
@@ -116,14 +122,18 @@ public:
     std::cout.fill(prev_fill);
   }
 
-  inline void print_score(const LabelT* predicted, const LabelT* expected, unsigned nb_obs) {
-    classifier<DataT, LabelT>::print_score(predicted, expected, nb_obs, get_nb_labels(), _label_user_to_label_idx);
+  inline void print_score(const LabelT* predicted, const LabelT* expected,
+                          unsigned nb_obs) {
+    classifier<DataT, LabelT>::print_score(
+        predicted, expected, nb_obs, get_nb_labels(), _label_user_to_label_idx);
   }
 
   virtual void load_from_disk(queue&) { assert(false); }
   virtual void save_to_disk(queue&) { assert(false); }
 
-  inline unsigned get_nb_labels() const { return _host_label_idx_to_label_user.size(); }
+  inline unsigned get_nb_labels() const {
+    return _host_label_idx_to_label_user.size();
+  }
 
   /**
    * @brief Give the set of labels instead of computing it during the training.
@@ -135,7 +145,8 @@ public:
    */
   template <class LabelSet>
   void set_label_set(const LabelSet& label_set) {
-    std::copy(label_set.begin(), label_set.end(), std::back_inserter(_host_label_idx_to_label_user));
+    std::copy(label_set.begin(), label_set.end(),
+              std::back_inserter(_host_label_idx_to_label_user));
     assert(_host_label_idx_to_label_user.size() > 0);
     setup_host_label_idx_to_label_user();
   }
@@ -150,15 +161,16 @@ public:
    * @return labels_indices
    */
   template <class HostLabels>
-  std::vector<std::vector<SYCLIndexT>> get_labels_indices(const HostLabels& host_labels,
-                                                          unsigned nb_labels, unsigned nb_obs) {
+  std::vector<std::vector<SYCLIndexT>> get_labels_indices(
+      const HostLabels& host_labels, unsigned nb_labels, unsigned nb_obs) {
     std::vector<std::vector<SYCLIndexT>> labels_indices(nb_labels);
     for (unsigned i = 0; i < nb_obs; ++i)
-      labels_indices[this->_label_user_to_label_idx[host_labels[i]]].push_back(i);
+      labels_indices[this->_label_user_to_label_idx[host_labels[i]]].push_back(
+          i);
     return labels_indices;
   }
 
-protected:
+ protected:
   std::vector<LabelT> _host_label_idx_to_label_user;
   vector_t<LabelT> _label_idx_to_label_user;
   std::unordered_map<LabelT, unsigned> _label_user_to_label_idx;
@@ -172,28 +184,34 @@ protected:
    */
   template <class HostLabelT>
   void process_labels(const HostLabelT& host_labels, unsigned nb_labels) {
-    if (!_label_user_to_label_idx.empty())  // Labels have been set by the user beforehand
+    if (!_label_user_to_label_idx
+             .empty())  // Labels have been set by the user beforehand
       return;
 
     // Find all different labels
     _host_label_idx_to_label_user.reserve(nb_labels);
-    for (unsigned i = 0; _host_label_idx_to_label_user.size() < nb_labels; ++i) {
+    for (unsigned i = 0; _host_label_idx_to_label_user.size() < nb_labels;
+         ++i) {
       auto user_label = host_labels[i];
-      auto it = std::find(_host_label_idx_to_label_user.begin(), _host_label_idx_to_label_user.end(), user_label);
+      auto it = std::find(_host_label_idx_to_label_user.begin(),
+                          _host_label_idx_to_label_user.end(), user_label);
       if (it == _host_label_idx_to_label_user.end())
         _host_label_idx_to_label_user.push_back(user_label);
     }
-    std::sort(_host_label_idx_to_label_user.begin(), _host_label_idx_to_label_user.end());
+    std::sort(_host_label_idx_to_label_user.begin(),
+              _host_label_idx_to_label_user.end());
     setup_host_label_idx_to_label_user();
   }
 
   /**
-   * @brief Copy _host_label_idx_to_label_user to the device and to _label_user_to_label_idx.
+   * @brief Copy _host_label_idx_to_label_user to the device and to
+   * _label_user_to_label_idx.
    */
   void setup_host_label_idx_to_label_user() {
     auto nb_labels = _host_label_idx_to_label_user.size();
-    _label_idx_to_label_user = vector_t<LabelT>(const_cast<const LabelT*>(_host_label_idx_to_label_user.data()),
-                                                range<1>(nb_labels));
+    _label_idx_to_label_user = vector_t<LabelT>(
+        const_cast<const LabelT*>(_host_label_idx_to_label_user.data()),
+        range<1>(nb_labels));
 
     // Map label user back to label idx
     for (unsigned i = 0; i < nb_labels; ++i)
@@ -210,7 +228,9 @@ protected:
     if (nb_labels == 0) {
       nb_labels = get_nb_labels();
       if (nb_labels == 0) {
-        std::cerr << "Error: set_label_set must be called before training if nb_labels is 0." << std::endl;
+        std::cerr << "Error: set_label_set must be called before training if "
+                     "nb_labels is 0."
+                  << std::endl;
         return false;
       }
     }
@@ -222,6 +242,6 @@ protected:
   }
 };
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_CLASSIFIERS_CLASSIFIER_HPP
+#endif  // INCLUDE_ML_CLASSIFIERS_CLASSIFIER_HPP

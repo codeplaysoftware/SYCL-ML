@@ -23,14 +23,14 @@
 
 #include "ml/utils/sycl_types.hpp"
 
-namespace ml
-{
+namespace ml {
 
 /**
  * @brief Represent either a choice of dimension or of transposing.
  *
  * A choice of dimension means whether to use a row or a column.\n
- * A choice of transposing means whether to access the matrix as if it were transposed or not.\n
+ * A choice of transposing means whether to access the matrix as if it were
+ * transposed or not.\n
  *
  */
 enum data_dim {
@@ -44,8 +44,7 @@ enum data_dim {
   TR = COL
 };
 
-namespace detail
-{
+namespace detail {
 
 template <class T, data_dim D>
 struct lin_or_tr {
@@ -57,7 +56,7 @@ struct lin_or_tr<T, TR> {
   static inline T apply(T, T tr) { return tr; }
 };
 
-} // detail
+}  // namespace detail
 
 /**
  * @brief Return the first value if LIN, the second otherwise.
@@ -69,7 +68,9 @@ struct lin_or_tr<T, TR> {
  * @return \p lin if D=LIN, \p tr otherwise
  */
 template <data_dim D, class T>
-inline constexpr T lin_or_tr(T lin, T tr) { return detail::lin_or_tr<T, D>::apply(lin, tr); }
+inline constexpr T lin_or_tr(T lin, T tr) {
+  return detail::lin_or_tr<T, D>::apply(lin, tr);
+}
 
 /**
  * @brief Return the opposite value of D.
@@ -78,10 +79,13 @@ inline constexpr T lin_or_tr(T lin, T tr) { return detail::lin_or_tr<T, D>::appl
  * @return TR if D=LIN, LIN otherwise
  */
 template <data_dim D>
-inline constexpr data_dim opp() { return static_cast<data_dim>((D + 1) % 2); }
+inline constexpr data_dim opp() {
+  return static_cast<data_dim>((D + 1) % 2);
+}
 
 /**
- * @brief Access an index of a \p range<2> that may be swapped according to \p D.
+ * @brief Access an index of a \p range<2> that may be swapped according to \p
+ * D.
  *
  * @tparam D
  * @param r
@@ -95,7 +99,8 @@ inline SYCLIndexT access_rng(const range<2>& r, SYCLIndexT i) {
 }
 
 /**
- * @brief Construct an object \p B with the 2 given parameters that may be swapped according to \p D.
+ * @brief Construct an object \p B with the 2 given parameters that may be
+ * swapped according to \p D.
  *
  * @tparam D
  * @tparam B class to build, must have a constructor with 2 @ref SYCLIndexT
@@ -109,21 +114,27 @@ inline constexpr B build_lin_or_tr(SYCLIndexT x1, SYCLIndexT x2) {
 }
 
 /**
- * @brief Construct another object \p B with the 2 parameters extracted from \p b that may be swapped according to \p D.
+ * @brief Construct another object \p B with the 2 parameters extracted from \p
+ * b that may be swapped according to \p D.
  *
  * @see build_lin_or_tr(SYCLIndexT, SYCLIndexT)
  * @tparam D
- * @tparam B class to build, must have a constructor with 2 arguments and a squared bracket accessor
+ * @tparam B class to build, must have a constructor with 2 arguments and a
+ * squared bracket accessor
  * @param b
  * @return the built object
  */
 template <data_dim D, class B>
-inline constexpr B build_lin_or_tr(const B& b) { return build_lin_or_tr<D, B>(b[0], b[1]); }
+inline constexpr B build_lin_or_tr(const B& b) {
+  return build_lin_or_tr<D, B>(b[0], b[1]);
+}
 
-//TODO(romain): Remove function if possible
+// TODO(romain): Remove function if possible
 template <data_dim D1, data_dim D2>
-inline constexpr std::array<eig_dim_pair_t, 1> get_contract_dim() { return { eig_dim_pair_t(D1, D2) }; }
+inline constexpr std::array<eig_dim_pair_t, 1> get_contract_dim() {
+  return {eig_dim_pair_t(D1, D2)};
+}
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_UTILS_ACCESS_HPP
+#endif  // INCLUDE_ML_UTILS_ACCESS_HPP

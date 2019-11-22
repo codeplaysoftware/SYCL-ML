@@ -15,21 +15,21 @@
  */
 /**
  * @file
- * @brief Allow the loading and saving of generic arrays and SYCL buffers to and from disk
+ * @brief Allow the loading and saving of generic arrays and SYCL buffers to and
+ * from disk
  */
 
 #ifndef INCLUDE_ML_UTILS_SAVE_UTILS_HPP
 #define INCLUDE_ML_UTILS_SAVE_UTILS_HPP
 
-#include <string>
 #include <fstream>
 #include <iostream>
+#include <string>
 
 #include "ml/utils/copy.hpp"
 #include "ml/utils/memory_helper.hpp"
 
-namespace ml
-{
+namespace ml {
 
 template <class T>
 void save_array(const T* data, size_t length, const std::string& file_path) {
@@ -59,7 +59,7 @@ template <class T>
 void save_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
   auto host_ptr = make_shared_array(new T[buf.get_count()]);
   sycl_copy_device_to_host(q, buf, host_ptr);
-  q.wait_and_throw(); // Make sure to wait (avoid AMD driver bug?)
+  q.wait_and_throw();  // Make sure to wait (avoid AMD driver bug?)
   save_array(host_ptr.get(), buf.get_count(), file_path);
 }
 
@@ -68,9 +68,9 @@ void load_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
   auto loaded_host = make_shared_array(new T[buf.get_count()]);
   load_array(loaded_host.get(), buf.get_count(), file_path);
   sycl_copy_host_to_device(q, loaded_host, buf);
-  q.wait_and_throw(); // Make sure to wait (avoid AMD driver bug?)
+  q.wait_and_throw();  // Make sure to wait (avoid AMD driver bug?)
 }
 
-} // ml
+}  // namespace ml
 
-#endif //INCLUDE_ML_UTILS_SAVE_UTILS_HPP
+#endif  // INCLUDE_ML_UTILS_SAVE_UTILS_HPP

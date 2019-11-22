@@ -26,7 +26,7 @@ class init_first_kernel;
  */
 void launch_first_kernel(cl::sycl::queue& q) {
   q.submit([](cl::sycl::handler& cgh) {
-    cgh.single_task<init_first_kernel>([](){});
+    cgh.single_task<init_first_kernel>([]() {});
   });
 }
 
@@ -48,4 +48,4 @@ void clear_eigen_device() {
   delete ml::get_device_constants();
 }
 
-#endif //TEST_SRC_UTILS_SYCL_UTILS_HPP
+#endif  // TEST_SRC_UTILS_SYCL_UTILS_HPP

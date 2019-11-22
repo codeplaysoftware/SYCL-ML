@@ -15,15 +15,13 @@
  */
 #include <iostream>
 
-#include "ml/math/mat_ops.hpp"
 #include "ml/math/cov.hpp"
+#include "ml/math/mat_ops.hpp"
 #include "utils/utils.hpp"
 
 template <class T, ml::data_dim D>
 void test_cov_square() {
-  std::array<T, 9> host_data {1.0, 4.0, 7.0,
-                              2.0, 0.0, -8.0,
-                              1.0, 2.0, 1.0};
+  std::array<T, 9> host_data{1.0, 4.0, 7.0, 2.0, 0.0, -8.0, 1.0, 2.0, 1.0};
 
   std::array<T, 9> host_cov;
   {
@@ -48,18 +46,16 @@ void test_cov_square() {
   ml::print(host_cov, 3, 3);
   */
 
-  std::array<T, 9> expected {6.0,         -10.0,       0.0,
-                             host_cov[1], 56.0/3.0,    2.0/3.0,
-                             host_cov[2], host_cov[5], 2.0/9.0};
+  std::array<T, 9> expected{6.0,         -10.0,       0.0,
+                            host_cov[1], 56.0 / 3.0,  2.0 / 3.0,
+                            host_cov[2], host_cov[5], 2.0 / 9.0};
   assert_vec_almost_eq(host_cov, expected);
 }
 
 template <class T, ml::data_dim D>
 void test_cov_general() {
   // 3 observations that have 2 variables each
-  std::array<T, 6> host_data {1.0, 2.0,
-                              3.0, 2.0,
-                              2.0, 11.0};
+  std::array<T, 6> host_data{1.0, 2.0, 3.0, 2.0, 2.0, 11.0};
 
   std::array<T, 4> host_cov;
   {
@@ -83,8 +79,7 @@ void test_cov_general() {
   ml::print(host_cov, 2, 2);
   */
 
-  std::array<T, 4> expected {2.0/3.0,     0.0,
-                             host_cov[1], 18.0};
+  std::array<T, 4> expected{2.0 / 3.0, 0.0, host_cov[1], 18.0};
   assert_vec_almost_eq(host_cov, expected);
 }
 

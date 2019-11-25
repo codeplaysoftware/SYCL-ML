@@ -46,13 +46,15 @@ class em_classifier
         _model_impl(model_impl) {}
 
   virtual void load_from_disk(queue& q) override {
-    for (unsigned i = 0; i < this->get_nb_labels(); ++i)
+    for (unsigned i = 0; i < this->get_nb_labels(); ++i) {
       _ems[i].load_from_disk(q);
+    }
   }
 
   virtual void save_to_disk(queue& q) override {
-    for (unsigned i = 0; i < this->get_nb_labels(); ++i)
+    for (unsigned i = 0; i < this->get_nb_labels(); ++i) {
       _ems[i].save_to_disk(q);
+    }
   }
 
  protected:
@@ -80,7 +82,8 @@ class em_classifier
       auto dist_row = dist.get_row(label_idx);
       _ems[label_idx].compute_llk(q, dataset, dist_row);
     }
-    q.wait_and_throw();  // wait for dist_row to write back in dist
+    // TODO: Remove wait later
+    q.wait_and_throw();  // Wait for dist_row to write back in dist
   }
 
  private:

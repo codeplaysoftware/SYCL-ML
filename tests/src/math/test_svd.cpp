@@ -51,13 +51,17 @@ void test_svd_general() {
                                        sycl_data.kernel_range);
     ml::sycl_copy(q, sycl_data, sycl_centered_data);
 
-    auto sycl_VLU = ml::svd<true, true, true>(q, sycl_data);
-    auto& sycl_U = sycl_VLU.U;
-    auto& sycl_L = sycl_VLU.L;
-    auto& sycl_V = sycl_VLU.V;
-    ml::assert_rng_less_or_eq({NB_OBS, NB_VEC}, sycl_U.data_range);
-    ml::assert_less_or_eq(NB_VEC, sycl_L.data_range[0]);
-    ml::assert_rng_less_or_eq({NB_VEC, ACT_SIZE_OBS}, sycl_V.data_range);
+    auto VLU = ml::svd<true, true, true>(q, sycl_data);
+    auto& sycl_U = VLU.U;
+    auto& sycl_V = VLU.V;
+    auto& vec_L = VLU.L;
+    ml::assert_rng_eq({NB_OBS, NB_VEC}, sycl_U.data_range);
+    ml::assert_eq(NB_VEC, vec_L.size());
+    ml::assert_rng_eq({NB_VEC, ACT_SIZE_OBS}, sycl_V.data_range);
+
+    std::copy(std::begin(vec_L), std::end(vec_L), std::begin(host_L));
+    ml::vector_t<T> sycl_L(host_L.data(), cl::sycl::range<1>(host_L.size()));
+    sycl_L.set_final_data(nullptr);
 
     ml::matrix_t<T> sycl_data_svd(sycl_data.data_range, sycl_data.kernel_range);
     ml::matrix_t<T> sycl_copy_V(sycl_V.data_range, sycl_V.kernel_range);
@@ -72,7 +76,6 @@ void test_svd_general() {
     sycl_centered_data.set_final_data(host_centered_data.data());
     sycl_data_svd.set_final_data(host_data_svd.data());
     sycl_U.set_final_data(host_U.data());
-    sycl_L.set_final_data(host_L.data());
     sycl_V.set_final_data(host_V.data());
     clear_eigen_device();
   }
@@ -93,8 +96,9 @@ void test_svd_general() {
   */
 
   assert_vec_almost_eq(host_centered_data, host_data_svd);
-  for (unsigned i = 0; i < NB_OBS * SIZE_OBS_POW2; ++i)
+  for (unsigned i = 0; i < NB_OBS * SIZE_OBS_POW2; ++i) {
     assert_almost_eq(host_residual[i], T(0));
+  }
 }
 
 int main(void) {

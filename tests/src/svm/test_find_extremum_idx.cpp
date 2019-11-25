@@ -42,10 +42,10 @@ void test_find_extremum_idx() {
                          start_search_indices.kernel_range,
                          ml::functors::identity<T>());
 
-    auto find_size_threshold_host = std::min(NB_ELT, 8LU);
+    std::array<uint32_t, 64> find_host_buffer;
     bool found = ml::detail::find_extremum_idx(
         q, sycl_cond, sycl_data, start_search_indices, buff_search_indices,
-        start_search_rng, find_size_threshold_host, std::less<T>(), min_idx);
+        start_search_rng, find_host_buffer, std::less<T>(), min_idx);
     assert(found);
 
     sycl_data.set_final_data(nullptr);

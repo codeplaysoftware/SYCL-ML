@@ -28,17 +28,19 @@ class ml_mat_inv;
  *
  * Uses the Gauss-Jordan method.
  *
- * @see tri_solve(queue&, matrix_t<T>&, matrix_t<T>&)
+ * @see tri_solve(queue&, matrix_t<T>&, matrix_t<T>&) for a more numerically
+ * stable solution
  * @tparam T
  * @param q
  * @param[in] mat
  * @param[out] inv
  * @param c_buffer temporary buffer must be at least of size nx(2*n)
  * @param block_buffer temporary buffer must be at least of size nx(n+1)
+ * @return A SYCL event corresponding to the last submitted operation
  */
 template <class T>
-void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
-             matrix_t<T>& c_buffer, matrix_t<T>& block_buffer) {
+event mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
+              matrix_t<T>& c_buffer, matrix_t<T>& block_buffer) {
   auto data_dim = mat.data_range[1];
   mat.assert_square();
   assert_rng_less_or_eq(mat.get_kernel_range(), inv.data_range);
@@ -46,7 +48,7 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
   assert_rng_less_or_eq(block_buffer.data_range, data_dim, data_dim + 1);
 
   // C = [A|I]
-  q.submit([&](handler& cgh) {
+  q.submit([&mat, &c_buffer](handler& cgh) {
     auto mat_acc = mat.template get_access_2d<access::mode::read>(cgh);
     auto c_acc =
         c_buffer.template get_access_2d<access::mode::discard_write>(cgh);
@@ -65,7 +67,7 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
   // Compute C so that C = [I|A^-1]
   for (decltype(data_dim) r = 0; r < data_dim; ++r) {
     // Write update in block_buffer
-    q.submit([&](handler& cgh) {
+    q.submit([&c_buffer, &block_buffer, r](handler& cgh) {
       auto c_acc = c_buffer.template get_access_2d<access::mode::read>(cgh);
       auto block_acc =
           block_buffer.template get_access_2d<access::mode::discard_write>(cgh);
@@ -85,7 +87,7 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
     });
 
     // Copy block_buffer in c_buffer
-    q.submit([&](handler& cgh) {
+    q.submit([&c_buffer, &block_buffer, r](handler& cgh) {
       auto c_acc = c_buffer.template get_access_2d<access::mode::write>(cgh);
       auto block_acc =
           block_buffer.template get_access_2d<access::mode::read>(cgh);
@@ -99,7 +101,7 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
   }
 
   // Copy the right part of C to inv
-  q.submit([&](handler& cgh) {
+  return q.submit([&c_buffer, &inv](handler& cgh) {
     auto c_acc = c_buffer.template get_access_2d<access::mode::read>(cgh);
     auto inv_acc = inv.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<3, ml_mat_inv, T>>(
@@ -120,13 +122,14 @@ void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv,
  * @param q
  * @param[in] mat
  * @param[out] inv
+ * @return A SYCL event corresponding to the last submitted operation
  */
 template <class T>
-void mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv) {
+event mat_inv(queue& q, matrix_t<T>& mat, matrix_t<T>& inv) {
   auto data_dim = mat.data_range[1];
   matrix_t<T> c_buffer(range<2>(data_dim, 2 * data_dim));
   matrix_t<T> block_buffer(range<2>(data_dim, data_dim + 1));
-  mat_inv(q, mat, inv, c_buffer, block_buffer);
+  return mat_inv(q, mat, inv, c_buffer, block_buffer);
 }
 
 }  // namespace ml

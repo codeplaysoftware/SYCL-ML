@@ -45,6 +45,7 @@ cl::sycl::queue& create_queue() {
  * @brief Free the singleton device_constants.
  */
 void clear_eigen_device() {
+  ml::get_eigen_device().synchronize();
   delete ml::get_device_constants();
 }
 

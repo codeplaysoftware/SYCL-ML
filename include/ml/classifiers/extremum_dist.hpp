@@ -91,7 +91,8 @@ class extremum_dist : public virtual classifier<DataT, LabelT> {
     vector_t<LabelT> predicted_labels(range<1>(nb_obs),
                                       get_optimal_nd_range(padded_nb_obs));
     Op comp_op;
-    q.submit([&](handler& cgh) {
+    q.submit([this, &dist, &predicted_labels, nb_labels,
+              comp_op](handler& cgh) {
       auto dist_acc = dist.template get_access_2d<access::mode::read>(cgh);
       auto label_idx_to_user_acc =
           this->_label_idx_to_label_user

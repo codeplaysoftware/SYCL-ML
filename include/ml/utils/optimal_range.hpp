@@ -58,15 +58,16 @@ template <int DIM>
 range<DIM> get_optimal_local_range(const range<DIM>& global_range) {
   auto max_work_group_size = get_device_constants()->get_max_work_group_size();
   range<DIM> local_range;
-  if (global_range.size() <= max_work_group_size)
+  if (global_range.size() <= max_work_group_size) {
     local_range = global_range;
-  else {
+  } else {
     auto max_work_group_item_sizes =
         get_device_constants()->get_max_work_item_sizes();
     for (int i = 0; i < DIM; ++i) {
       local_range[i] = max_work_group_item_sizes[i];
-      while (global_range[i] % local_range[i])
+      while (global_range[i] % local_range[i]) {
         local_range[i] >>= 1;
+      }
     }
 
     // Make sure the local size does not exceed the maximum

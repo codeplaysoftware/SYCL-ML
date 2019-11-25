@@ -36,12 +36,14 @@ class ml_smo_compute_obj_values;
  * @param[in] ker_diag_buffer
  * @param[in] ker_i_t
  * @param[out] obj_values
+ * @return A SYCL event corresponding to the submitted operation
  */
 template <class T>
-void compute_obj_values(queue& q, SYCLIndexT i, T g_max, T eps,
-                        vector_t<T>& gradient, vector_t<T>& ker_diag_buffer,
-                        vector_t<T>& ker_i_t, vector_t<T>& obj_values) {
-  q.submit([&](handler& cgh) {
+event compute_obj_values(queue& q, SYCLIndexT i, T g_max, T eps,
+                         vector_t<T>& gradient, vector_t<T>& ker_diag_buffer,
+                         vector_t<T>& ker_i_t, vector_t<T>& obj_values) {
+  return q.submit([&gradient, &ker_diag_buffer, &ker_i_t, &obj_values, i, g_max,
+                   eps](handler& cgh) {
     auto g_acc = gradient.template get_access_1d<access::mode::read>(cgh);
     auto ker_diag_acc =
         ker_diag_buffer.template get_access_1d<access::mode::read>(cgh);
@@ -67,8 +69,11 @@ class ml_smo_find_extremum_idx;
  * If multiple elements satisfying the condition are equal to the max or the
  * min, it must return the last element.
  *
- * @tparam Compare should be std::less or std::greater
+ * @tparam Compare should be std::less (resp. std::greater) to look for a
+ * minimum (resp. maximum) element
  * @tparam T
+ * @tparam ContainerT Container of type uint32_t, must provide size and data
+ * methods and [] operator
  * @param q
  * @param[in] cond whether to take into account the ith element
  * @param[in] gradient values to minimize or maximize
@@ -76,53 +81,47 @@ class ml_smo_find_extremum_idx;
  * result from previous iteration
  * @param[out] out_indices resulting indices
  * @param search_rng
- * @param size_threshold_host threshold below which the search is done on the
- * host
+ * @param host_buffer Buffer used to perform the end of the search. It's size is
+ * used as a threshold below which the search is done on the host
  * @param comp
  * @param[out] extremum_idx
  * @return true if an extremum could be found (i.e. if cond has at least one
  * true)
  */
-template <class Compare, class T>
+template <class Compare, class T, class ContainerT>
 bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
                        vector_t<uint32_t>& in_indices,
                        vector_t<uint32_t>& out_indices,
-                       const nd_range<1>& search_rng,
-                       SYCLIndexT size_threshold_host, Compare comp,
-                       SYCLIndexT& extremum_idx) {
+                       const nd_range<1>& search_rng, ContainerT host_buffer,
+                       Compare comp, SYCLIndexT& extremum_idx) {
   auto search_size = search_rng.get_global_linear_range();
-  if (search_size <=
-      size_threshold_host) {  // Search on the host starting from the end
-    auto host_in_indices = in_indices.template get_access<access::mode::read>(
-        range<1>(2 * search_size), id<1>(0));
+  // Search on the host starting from the end
+  if (2 * search_size <= host_buffer.size()) {
+    auto copy_event = sycl_copy_device_to_host(
+        q, in_indices, host_buffer.data(), 0, 2 * search_size);
+    copy_event.wait_and_throw();
     long k = 2 * search_size - 1;
     extremum_idx = -1;
     T extremum_gradient;
-    while (k >= 0) {  // Find last gradient which index holds the condition
-      auto i = host_in_indices[k];
+    T grad_i;
+    // Find last extremum gradient's index holding the condition
+    while (k >= 0) {
+      auto i = host_buffer[k];
       if (cond.read_to_host(i)) {
-        extremum_idx = i;
-        extremum_gradient = gradient.read_to_host(i);
-        break;
+        grad_i = gradient.read_to_host(i);
+        if (comp(grad_i, extremum_gradient)) {
+          extremum_idx = i;
+          extremum_gradient = grad_i;
+          break;
+        }
       }
       --k;
     }
-    if (k < 0)
-      return false;
-
-    --k;
-    while (k >= 0) {  // Find extremum gradient which index holds the condition
-      auto i = host_in_indices[k--];
-      T grad_i = gradient.read_to_host(i);
-      if (cond.read_to_host(i) && comp(grad_i, extremum_gradient)) {
-        extremum_idx = i;
-        extremum_gradient = grad_i;
-      }
-    }
-    return cond.read_to_host(extremum_idx);
+    return k >= 0 && cond.read_to_host(extremum_idx);
   }
 
-  q.submit([&](handler& cgh) {
+  q.submit([&cond, &gradient, &in_indices, &out_indices, comp,
+            search_rng](handler& cgh) {
     auto cond_acc = cond.template get_access_1d<access::mode::read>(cgh);
     auto g_acc = gradient.template get_access_1d<access::mode::read>(cgh);
     auto in_indices_acc =
@@ -145,8 +144,8 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
 
   sycl_copy(q, out_indices, in_indices, 0, 0, search_size);
   return find_extremum_idx(q, cond, gradient, in_indices, out_indices,
-                           get_optimal_nd_range(search_size / 2),
-                           size_threshold_host, comp, extremum_idx);
+                           get_optimal_nd_range(search_size / 2), host_buffer,
+                           comp, extremum_idx);
 }
 
 /**
@@ -164,19 +163,18 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
  * @param[in] eps
  * @param[in] start_search_indices
  * @param[in] start_search_rng
- * @param[in] find_size_threshold_host
+ * @param[in] host_buffer
  * @param[in, out] kernel_cache
  * @param[out] i
  * @param[out] j
  * @param[out] diff
  * @return whether a pair was successfully selected
  */
-template <class KerFun, class T>
+template <class KerFun, class T, class ContainerT>
 bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
                 vector_t<T>& vec_cond_greater, vector_t<T>& vec_cond_less,
                 T tol, T eps, vector_t<uint32_t>& start_search_indices,
-                const nd_range<1>& start_search_rng,
-                SYCLIndexT find_size_threshold_host,
+                const nd_range<1>& start_search_rng, ContainerT host_buffer,
                 kernel_cache<KerFun, T>& kernel_cache, SYCLIndexT& i,
                 SYCLIndexT& j, T& diff) {
   vector_t<uint32_t> tmp_in_search_indices(start_search_indices.data_range,
@@ -186,8 +184,8 @@ bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
   // Compute max(gradient) and its index i
   sycl_copy(q, start_search_indices, tmp_in_search_indices);
   if (!find_extremum_idx(q, vec_cond_greater, gradient, tmp_in_search_indices,
-                         buff_search_indices, start_search_rng,
-                         find_size_threshold_host, std::greater<T>(), i)) {
+                         buff_search_indices, start_search_rng, host_buffer,
+                         std::greater<T>(), i)) {
     return false;
   }
   auto ker_i_t = kernel_cache.get_ker_row(i);
@@ -197,15 +195,16 @@ bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
   sycl_copy(q, start_search_indices, tmp_in_search_indices);
   SYCLIndexT g_min_idx;
   if (!find_extremum_idx(q, vec_cond_less, gradient, tmp_in_search_indices,
-                         buff_search_indices, start_search_rng,
-                         find_size_threshold_host, std::less<T>(), g_min_idx)) {
+                         buff_search_indices, start_search_rng, host_buffer,
+                         std::less<T>(), g_min_idx)) {
     return false;
   }
   T g_min = gradient.read_to_host(g_min_idx);
 
   diff = g_max - g_min;
-  if (diff < tol)
+  if (diff < tol) {
     return false;
+  }
 
   // Compute the index j of min(obj_values)
   vector_t<T> obj_values(y.data_range, y.kernel_range);
@@ -214,8 +213,8 @@ bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
 
   sycl_copy(q, start_search_indices, tmp_in_search_indices);
   return find_extremum_idx(q, vec_cond_less, obj_values, tmp_in_search_indices,
-                           buff_search_indices, start_search_rng,
-                           find_size_threshold_host, std::less<T>(), j);
+                           buff_search_indices, start_search_rng, host_buffer,
+                           std::less<T>(), j);
 }
 
 class ml_smo_update_gradient;
@@ -242,11 +241,13 @@ class ml_smo_update_gradient;
  * @param[in] ker_i_t
  * @param[in] ker_j_t
  * @param[out] gradient
+ * @return A SYCL event corresponding to the submitted operation
  */
 template <class T>
-void update_gradient(queue& q, T delta_ai, T delta_aj, vector_t<T>& ker_i_t,
-                     vector_t<T>& ker_j_t, vector_t<T>& gradient) {
-  q.submit([&](handler& cgh) {
+event update_gradient(queue& q, T delta_ai, T delta_aj, vector_t<T>& ker_i_t,
+                      vector_t<T>& ker_j_t, vector_t<T>& gradient) {
+  return q.submit([&ker_i_t, &ker_j_t, &gradient, delta_ai,
+                   delta_aj](handler& cgh) {
     auto ker_i_t_acc = ker_i_t.template get_access_1d<access::mode::read>(cgh);
     auto ker_j_t_acc = ker_j_t.template get_access_1d<access::mode::read>(cgh);
     auto g_acc = gradient.template get_access_1d<access::mode::read_write>(cgh);
@@ -270,11 +271,12 @@ class ml_smo_copy_alphas;
  * @param[in] y
  * @param[in] sv_indices
  * @param[out] sv_alphas
+ * @return A SYCL event corresponding to the submitted operation
  */
 template <class T, class IndexT>
-void copy_alphas(queue& q, vector_t<T>& alphas, vector_t<T>& y,
-                 vector_t<IndexT>& sv_indices, vector_t<T>& sv_alphas) {
-  q.submit([&](handler& cgh) {
+event copy_alphas(queue& q, vector_t<T>& alphas, vector_t<T>& y,
+                  vector_t<IndexT>& sv_indices, vector_t<T>& sv_alphas) {
+  return q.submit([&](handler& cgh) {
     auto y_acc = y.template get_access_1d<access::mode::read>(cgh);
     auto old_a_acc = alphas.template get_access_1d<access::mode::read>(cgh);
     auto sv_idx_acc =
@@ -338,8 +340,9 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
   auto m = access_ker_dim(x, 0);
   assert_eq(y.kernel_range.get_global_linear_range(), to_pow2(m));
 
-  if (max_nb_iter == 0)
+  if (max_nb_iter == 0) {
     max_nb_iter = std::max(10000000LU, m > INT_MAX / 100 ? INT_MAX : 100 * m);
+  }
 
   vector_t<T> alphas(y.data_range, y.kernel_range);
   vector_t<T> gradient(y.data_range, y.kernel_range);
@@ -366,18 +369,17 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
   sycl_copy(q, y, gradient);
   sycl_init_func_i(q, start_search_indices, start_search_indices.get_nd_range(),
                    functors::identity<T>());
-  SYCLIndexT find_size_threshold_host = std::min(m, 8LU);
 
   SYCLIndexT i;
   SYCLIndexT j;
   T diff;
   SYCLIndexT nb_iter = 0;
   T eps = 1E-8;
+  std::array<uint32_t, 64> find_host_buffer;
   while (nb_iter < max_nb_iter) {
     if (!detail::select_wss(q, y, gradient, vec_cond_greater, vec_cond_less,
                             tol, eps, start_search_indices, start_search_rng,
-                            find_size_threshold_host, kernel_cache, i, j,
-                            diff)) {
+                            find_host_buffer, kernel_cache, i, j, diff)) {
       break;
     }
     // std::cout << "#" << nb_iter << " i=" << i << " j=" << j << " diff=" <<
@@ -418,33 +420,40 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
     assert(std::abs(delta_ai) >= eps);
     assert(std::abs(delta_aj) >= eps);
 
-    detail::update_gradient(q, delta_ai, delta_aj, ker_i_t, ker_j_t, gradient);
+    auto update_event = detail::update_gradient(q, delta_ai, delta_aj, ker_i_t,
+                                                ker_j_t, gradient);
     vec_cond_greater.write_from_host(i, cond_greater(yi, ai));
     vec_cond_greater.write_from_host(j, cond_greater(yj, aj));
     vec_cond_less.write_from_host(i, cond_less(yi, ai));
     vec_cond_less.write_from_host(j, cond_less(yj, aj));
     ++nb_iter;
+    update_event.wait_and_throw();
   }
 
-  if (nb_iter == max_nb_iter)
+  if (nb_iter == max_nb_iter) {
     std::cout << "Warning: maximum number of iteration reached, SVM may not "
                  "have converged."
               << std::endl;
+  }
 
   // Compute host_sv_indices
-  auto host_alphas = alphas.template get_access<access::mode::read>();
   std::vector<uint32_t> host_sv_indices;
-  for (unsigned k = 0; k < m; ++k) {
-    if (host_alphas[k] > alpha_eps)
-      host_sv_indices.push_back(k);
+  {
+    auto host_alphas = alphas.template get_access<access::mode::read>();
+    for (unsigned k = 0; k < m; ++k) {
+      if (host_alphas[k] > alpha_eps) {
+        host_sv_indices.push_back(k);
+      }
+    }
   }
   auto nb_sv = host_sv_indices.size();
   assert(nb_sv > 0);
 
   // Compute rho
   T rho = 0;
-  for (auto sv_idx : host_sv_indices)
+  for (auto sv_idx : host_sv_indices) {
     rho += gradient.read_to_host(sv_idx);
+  }
   rho /= nb_sv;
 
   // Copy the selected support vectors and y .* alphas

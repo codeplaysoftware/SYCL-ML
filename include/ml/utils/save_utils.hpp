@@ -27,7 +27,6 @@
 #include <string>
 
 #include "ml/utils/copy.hpp"
-#include "ml/utils/memory_helper.hpp"
 
 namespace ml {
 
@@ -57,18 +56,18 @@ void load_array(T* data, size_t length, const std::string& file_path) {
 
 template <class T>
 void save_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
-  auto host_ptr = make_shared_array(new T[buf.get_count()]);
-  sycl_copy_device_to_host(q, buf, host_ptr);
-  q.wait_and_throw();  // Make sure to wait (avoid AMD driver bug?)
-  save_array(host_ptr.get(), buf.get_count(), file_path);
+  std::vector<T> host_buf(buf.get_count());
+  auto event = sycl_copy_device_to_host(q, buf, host_buf.data());
+  event.wait_and_throw();
+  save_array(host_buf.data(), buf.get_count(), file_path);
 }
 
 template <class T>
 void load_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
-  auto loaded_host = make_shared_array(new T[buf.get_count()]);
-  load_array(loaded_host.get(), buf.get_count(), file_path);
-  sycl_copy_host_to_device(q, loaded_host, buf);
-  q.wait_and_throw();  // Make sure to wait (avoid AMD driver bug?)
+  std::vector<T> host_buf(buf.get_count());
+  load_array(host_buf.data(), buf.get_count(), file_path);
+  auto event = sycl_copy_host_to_device(q, host_buf.data(), buf);
+  event.wait_and_throw();
 }
 
 }  // namespace ml

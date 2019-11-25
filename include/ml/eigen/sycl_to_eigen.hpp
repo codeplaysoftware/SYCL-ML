@@ -31,10 +31,12 @@ eig_dsize_t<OUT_DIM> range_to_dsize(const range<IN_DIM>& r) {
 
   eig_dsize_t<OUT_DIM> dim;
   int i = 0;
-  for (; i < IN_DIM; ++i)
+  for (; i < IN_DIM; ++i) {
     dim[i] = static_cast<eig_index_t>(r[i]);
-  for (; i < OUT_DIM; ++i)
+  }
+  for (; i < OUT_DIM; ++i) {
     dim[i] = 1;
+  }
   return dim;
 }
 
@@ -71,13 +73,14 @@ class sycl_to_eigen_t {
             cl::sycl::range<1>(b.get_count() * sizeof(T)));
     _host_ptr =
         static_cast<T*>(get_eigen_device().attach_buffer(reinterpret_buffer));
-    _tensor = std::make_shared<tensor_map_t<T, OUT_DIM, DataLayout>>(_host_ptr,
+    _tensor = std::make_unique<tensor_map_t<T, OUT_DIM, DataLayout>>(_host_ptr,
                                                                      sizes);
   }
 
   ~sycl_to_eigen_t() {
-    if (_host_ptr)
+    if (_host_ptr) {
       get_eigen_device().detach_buffer(_host_ptr);
+    }
   }
 
   /**
@@ -98,7 +101,7 @@ class sycl_to_eigen_t {
 
  private:
   T* _host_ptr;
-  std::shared_ptr<tensor_map_t<T, OUT_DIM, DataLayout>> _tensor;
+  std::unique_ptr<tensor_map_t<T, OUT_DIM, DataLayout>> _tensor;
 };
 
 /**

@@ -119,9 +119,9 @@ struct svm_linear_kernel : public svm_kernel<T> {
 
     auto ker_mat =
         eig_x1.tensor().contract(eig_x2.tensor(), get_contract_dim<COL, COL>());
-    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2)
+    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2) {
       eig_out.device() = ker_mat;
-    else {
+    } else {
       auto sliced_out = eig_out.tensor().slice(
           eig_dsize_t<2>{0, 0}, detail::range_to_dsize(range<2>(m1, m2)));
       sliced_out.device(get_eigen_device()) = ker_mat;
@@ -177,9 +177,9 @@ struct svm_polynomial_kernel : public svm_kernel<T> {
                              eig_x2.tensor(), get_contract_dim<COL, COL>()) +
                     _c)
                        .pow(_d);
-    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2)
+    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2) {
       eig_out.device() = ker_mat;
-    else {
+    } else {
       auto sliced_out = eig_out.tensor().slice(
           eig_dsize_t<2>{0, 0}, detail::range_to_dsize(range<2>(m1, m2)));
       sliced_out.device(get_eigen_device()) = ker_mat;
@@ -249,9 +249,9 @@ struct svm_rbf_kernel : public svm_kernel<T> {
 
     auto ker_mat =
         ((rep_x1 - rep_x2).square().sum(eig_dims_t<1>{2}) * (-_g)).exp();
-    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2)
+    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2) {
       eig_out.device() = ker_mat;
-    else {
+    } else {
       auto sliced_out = eig_out.tensor().slice(
           eig_dsize_t<2>{0, 0}, detail::range_to_dsize(range<2>(m1, m2)));
       sliced_out.device(get_eigen_device()) = ker_mat;
@@ -310,9 +310,9 @@ struct svm_sigmoid_kernel : public svm_kernel<T> {
                              eig_x2.tensor(), get_contract_dim<COL, COL>()) +
                     _c)
                        .tanh();
-    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2)
+    if (access_ker_dim(out, 0) == m1 && access_ker_dim(out, 1) == m2) {
       eig_out.device() = ker_mat;
-    else {
+    } else {
       auto sliced_out = eig_out.tensor().slice(
           eig_dsize_t<2>{0, 0}, detail::range_to_dsize(range<2>(m1, m2)));
       sliced_out.device(get_eigen_device()) = ker_mat;

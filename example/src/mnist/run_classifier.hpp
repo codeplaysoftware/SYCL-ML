@@ -48,15 +48,15 @@ void run_classifier(
   std::vector<LabelType> label_set(10);
   // Create the set of labels here instead of computing it during the training
   std::iota(label_set.begin(), label_set.end(), 0);
-  const DataType normalize_factor =
-      255;  // Data will be shifted in the range [0, 1]
+  // Data will be shifted in the range [0, 1]
+  const DataType normalize_factor = 255;
 
   // Load and save options
   const bool load_classifier = false;
   const bool save_classifier = false;
 
   // What the classifier will compute
-  std::unique_ptr<LabelType[]> host_predicted_test_labels;
+  std::vector<LabelType> host_predicted_test_labels;
 
   {  // Scope with a SYCL queue
     cl::sycl::queue& q = create_queue();
@@ -72,10 +72,14 @@ void run_classifier(
         auto host_train_data = read_mnist_images<DataType>(
             mnist_get_train_images_path(mnist_path), obs_size, padded_obs_size,
             nb_train_obs, false, true, normalize_factor);
+        if (host_train_data.empty()) {
+          return;
+        }
         ml::matrix_t<DataType> sycl_train_data_raw(
-            host_train_data, cl::sycl::range<2>(nb_train_obs, padded_obs_size));
-        sycl_train_data_raw.data_range[1] =
-            obs_size;  // Specify the real size of an observation
+            host_train_data.data(),
+            cl::sycl::range<2>(nb_train_obs, padded_obs_size));
+        // Specify the real size of an observation
+        sycl_train_data_raw.data_range[1] = obs_size;
         sycl_train_data_raw.set_final_data(nullptr);
 
         sycl_train_data =
@@ -85,23 +89,24 @@ void run_classifier(
       // Load labels
       auto host_train_labels = read_mnist_labels<LabelType>(
           mnist_get_train_labels_path(mnist_path), nb_train_obs);
-      ml::vector_t<LabelType> sycl_train_labels(
-          host_train_labels, cl::sycl::range<1>(nb_train_obs));
-      sycl_train_labels.set_final_data(nullptr);
+      if (host_train_labels.empty()) {
+        return;
+      }
 
       if (load_classifier) {
         classifier.load_from_disk(q);
       } else {
         {  // Create a scope to time only the training
           TIME(train_classifier);
-          classifier.set_label_set(
-              label_set);  // Give the sets of labels to avoid computing it
-                           // during the training
-          classifier.train(q, sycl_train_data, sycl_train_labels);
-          q.wait_and_throw();  // wait to measure the correct training time
+          // Give the sets of labels to avoid computing it during the training
+          classifier.set_label_set(label_set);
+          classifier.train(q, sycl_train_data, host_train_labels);
+          // Wait to measure the correct training time
+          q.wait_and_throw();
         }
-        if (save_classifier)
+        if (save_classifier) {
           classifier.save_to_disk(q);
+        }
       }
     }  // End of train
 
@@ -114,10 +119,14 @@ void run_classifier(
         auto host_test_data = read_mnist_images<DataType>(
             mnist_get_test_images_path(mnist_path), obs_size, padded_obs_size,
             nb_test_obs, false, true, normalize_factor);
+        if (host_test_data.empty()) {
+          return;
+        }
         ml::matrix_t<DataType> sycl_test_data_raw(
-            host_test_data, cl::sycl::range<2>(nb_test_obs, padded_obs_size));
-        sycl_test_data_raw.data_range[1] =
-            obs_size;  // Specify the real size of an observation
+            host_test_data.data(),
+            cl::sycl::range<2>(nb_test_obs, padded_obs_size));
+        // Specify the real size of an observation
+        sycl_test_data_raw.data_range[1] = obs_size;
         sycl_test_data_raw.set_final_data(nullptr);
 
         sycl_test_data = apply_pca.apply(q, sycl_test_data_raw);
@@ -126,15 +135,14 @@ void run_classifier(
       // Inference
       TIME(predict_classifier);
       auto sycl_predicted_test_labels = classifier.predict(q, sycl_test_data);
-      auto nb_labels_predicted =
-          sycl_predicted_test_labels
-              .get_count();  // Can be rounded up to a power of 2
-      host_predicted_test_labels =
-          std::unique_ptr<LabelType[]>(new LabelType[nb_labels_predicted]);
+      // Can be rounded up to a power of 2
+      auto nb_labels_predicted = sycl_predicted_test_labels.get_count();
+      host_predicted_test_labels.resize(nb_labels_predicted);
       sycl_predicted_test_labels.set_final_data(
-          host_predicted_test_labels.get());
-      q.wait_and_throw();  // wait to measure the correct prediction time
-    }                      // End of tests
+          host_predicted_test_labels.data());
+      // Wait to measure the correct prediction time
+      q.wait_and_throw();
+    }  // End of tests
 
     clear_eigen_device();
   }  // SYCL queue is destroyed
@@ -143,8 +151,11 @@ void run_classifier(
   unsigned nb_test_obs;
   auto host_expected_test_labels = read_mnist_labels<LabelType>(
       mnist_get_test_labels_path(mnist_path), nb_test_obs);
-  classifier.print_score(host_predicted_test_labels.get(),
-                         host_expected_test_labels.get(), nb_test_obs);
+  if (host_expected_test_labels.empty()) {
+    return;
+  }
+  classifier.print_score(host_predicted_test_labels.data(),
+                         host_expected_test_labels.data(), nb_test_obs);
 }
 
 #endif  // EXAMPLE_SRC_MNIST_RUN_CLASSIFIER_HPP

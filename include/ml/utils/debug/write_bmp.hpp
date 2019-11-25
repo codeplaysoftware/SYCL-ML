@@ -71,10 +71,12 @@ void write_bmp_grayscale(std::string filename, const Data& data,
                          unsigned from_r = 0, unsigned from_c = 0,
                          unsigned to_r = 0, unsigned to_c = 0,
                          unsigned nb_repeat = 1, unsigned repeat_offset = 0) {
-  if (to_r == 0)
+  if (to_r == 0) {
     to_r = img_nb_rows;
-  if (to_c == 0)
+  }
+  if (to_c == 0) {
     to_c = img_nb_cols;
+  }
 
   assert(to_r > from_r);
   assert(to_c > from_c);
@@ -83,8 +85,9 @@ void write_bmp_grayscale(std::string filename, const Data& data,
   if (filename.length() <= 4 ||
       filename.find(".bmp") != filename.length() - 4) {
     std::stringstream ss;
-    if (filename[filename.length() - 1] == '_')
+    if (filename[filename.length() - 1] == '_') {
       ss << count++;
+    }
     ss << "_normalize_" << (int) normalize;
     ss << "_abs_" << (int) abs;
     ss << ".bmp";
@@ -95,23 +98,28 @@ void write_bmp_grayscale(std::string filename, const Data& data,
   if (!ofs.is_open()) {
     std::cerr << "Could not create file " << filename << std::endl;
     return;
-  } else
+  } else {
     std::cout << "Writing to " << filename;
+  }
 
   using get_data_f = std::function<T(long, long)>;
   auto for_each_pixel = [&](get_data_f get, std::function<void(T)> op) {
-    for (long i = nb_repeat - 1; i >= 0; --i)
-      for (long r = to_r - 1; r >= 0; --r)
-        for (long c = from_c; c < to_c; ++c)
+    for (long i = nb_repeat - 1; i >= 0; --i) {
+      for (long r = to_r - 1; r >= 0; --r) {
+        for (long c = from_c; c < to_c; ++c) {
           op(get(r + i * (to_r - from_r), c + i * repeat_offset));
+        }
+      }
+    }
   };
 
   get_data_f get_data = [&](long r, long c) {
     return data[r * data_nb_cols + c];
   };
   get_data_f get_data_if_abs = get_data;
-  if (abs)
+  if (abs) {
     get_data_if_abs = [&](long r, long c) { return std::fabs(get_data(r, c)); };
+  }
 
   unsigned image_size = nb_repeat * img_nb_rows * img_nb_cols;
   unsigned nb_nan = 0;
@@ -121,15 +129,17 @@ void write_bmp_grayscale(std::string filename, const Data& data,
     max = -std::numeric_limits<T>::infinity();
     float avg = 0;
     for_each_pixel(get_data_if_abs, [&](T d) {
-      if (std::isnan(d))
+      if (std::isnan(d)) {
         ++nb_nan;
-      else if (std::isinf(d))
+      } else if (std::isinf(d)) {
         ++nb_inf;
-      else {
-        if (d > max)
+      } else {
+        if (d > max) {
           max = d;
-        if (d < min)
+        }
+        if (d < min) {
           min = d;
+        }
         avg += (float) d / image_size;
       }
     });
@@ -153,10 +163,11 @@ void write_bmp_grayscale(std::string filename, const Data& data,
     get_data_f get_data_if_norm = get_data_if_abs;
     T min_max_diff = max - min;
     T norm_factor = min_max_diff ? T(255.0) / min_max_diff : T(1);
-    if (normalize)
+    if (normalize) {
       get_data_if_norm = [&](long r, long c) {
         return (get_data_if_abs(r, c) - min) * norm_factor;
       };
+    }
 
     ofs << "BM";
     struct {
@@ -191,21 +202,23 @@ void write_bmp_grayscale(std::string filename, const Data& data,
     unsigned act_byte = 0;
 
     for_each_pixel(get_data_if_norm, [&](T d) {
-      if (std::isnan(d))
+      if (std::isnan(d)) {
         detail::write_pixel(ofs, {0, 0, 255});  // red
-      else if (std::isinf(d))
+      } else if (std::isinf(d)) {
         detail::write_pixel(ofs, {0, 255, 0});  // green
-      else {
+      } else {
         byte = static_cast<unsigned char>(
             std::min(std::max(T(std::round(d)), T(0)), T(255)));
-        if (normalize && std::fabs(byte - d) > 0.5)
+        if (normalize && std::fabs(byte - d) > 0.5) {
           detail::write_pixel(ofs, {255, 0, 0});  // blue
-        else
+        } else {
           detail::write_pixel(ofs, {byte, byte, byte});
+        }
       }
 
-      if (++act_byte % img_nb_cols == 0)
+      if (++act_byte % img_nb_cols == 0) {
         ofs.write(pad, pad_size);
+      }
     });
 
     ofs.close();
@@ -220,8 +233,8 @@ void write_bmp_grayscale(std::string filename, const Data& data,
  *
  * The number of row of the image is the size of the vector's data range.
  * @see write_bmp_grayscale(std::string, const Data&, unsigned, unsigned,
- * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned, unsigned,
- * unsigned)
+ * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned,
+ * unsigned, unsigned)
  */
 template <class T>
 inline void write_bmp_grayscale(std::string filename, vector_t<T>& data,
@@ -238,10 +251,11 @@ inline void write_bmp_grayscale(std::string filename, vector_t<T>& data,
 /**
  * @brief Save a SYCL vector to a bmp file.
  *
- * The number of row of the image is the size of the vector's kernel range.
+ * The number of row of the image is the size of the vector's kernel
+ * range.
  * @see write_bmp_grayscale(std::string, const Data&, unsigned, unsigned,
- * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned, unsigned,
- * unsigned)
+ * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned,
+ * unsigned, unsigned)
  */
 template <class T>
 inline void write_bmp_grayscale_ker_rng(std::string filename, vector_t<T>& data,
@@ -261,8 +275,8 @@ inline void write_bmp_grayscale_ker_rng(std::string filename, vector_t<T>& data,
  *
  * The size of the image is the size of the matrix's data range.
  * @see write_bmp_grayscale(std::string, const Data&, unsigned, unsigned,
- * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned, unsigned,
- * unsigned)
+ * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned,
+ * unsigned, unsigned)
  */
 template <class T>
 inline void write_bmp_grayscale(std::string filename, matrix_t<T>& data,
@@ -282,8 +296,8 @@ inline void write_bmp_grayscale(std::string filename, matrix_t<T>& data,
  *
  * The size of the image is the size of the matrix's kernel range.
  * @see write_bmp_grayscale(std::string, const Data&, unsigned, unsigned,
- * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned, unsigned,
- * unsigned)
+ * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned,
+ * unsigned, unsigned)
  */
 template <class T>
 inline void write_bmp_grayscale_ker_rng(std::string filename, matrix_t<T>& data,
@@ -302,8 +316,8 @@ inline void write_bmp_grayscale_ker_rng(std::string filename, matrix_t<T>& data,
  * @brief Save a Tensor to a bmp file with the size specified by \p r.
  *
  * @see write_bmp_grayscale(std::string, const Data&, unsigned, unsigned,
- * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned, unsigned,
- * unsigned)
+ * unsigned, bool, bool, T, T, unsigned, unsigned, unsigned, unsigned,
+ * unsigned, unsigned)
  */
 template <class Tensor, int DIM, class T = typename Tensor::Scalar>
 inline void write_bmp_grayscale(std::string filename, Tensor t,

@@ -27,12 +27,11 @@ namespace detail {
 class ml_pca_svd_copy_v;
 
 template <class T>
-void copy_eigenvectors(queue& q, vector_t<SYCLIndexT>& sycl_indices,
-                       matrix_t<T>& in_v, matrix_t<T>& out_v) {
-  q.submit([&](handler& cgh) {
+event copy_eigenvectors(queue& q, vector_t<SYCLIndexT>& indices,
+                        matrix_t<T>& in_v, matrix_t<T>& out_v) {
+  return q.submit([&indices, &in_v, &out_v](handler& cgh) {
     auto in_acc = in_v.template get_access_2d<access::mode::read>(cgh);
-    auto indices_acc =
-        sycl_indices.template get_access_1d<access::mode::read>(cgh);
+    auto indices_acc = indices.template get_access_1d<access::mode::read>(cgh);
     auto out_acc =
         out_v.template get_access_2d<access::mode::discard_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_pca_svd_copy_v, T>>(
@@ -102,10 +101,11 @@ matrix_t<T> pca_svd(queue& q, matrix_t<T>& data, vector_t<T>& data_avg,
   // For precision, scale data to change the eigenvalues but not the
   // eigenvectors
   auto scaled_data = matrix_t<T>(data.data_range, data.kernel_range);
-  if (pca_args.scale_factor != T(1))
+  if (pca_args.scale_factor != T(1)) {
     vec_unary_op(q, data, scaled_data,
                  functors::partial_binary_op<T, std::multiplies<T>>(
                      pca_args.scale_factor));
+  }
 
   matrix_t<T> cov_matrix(range<2>(data_dim, data_dim),
                          get_optimal_nd_range(data_dim_pow2, data_dim_pow2));
@@ -113,14 +113,14 @@ matrix_t<T> pca_svd(queue& q, matrix_t<T>& data, vector_t<T>& data_avg,
   SYCLIndexT estimated_nb_vecs = data_dim;
   auto svd_out = svd<false, true, true>(q, cov_matrix, estimated_nb_vecs);
 
-  if (pca_args.keep_percent >= 1)
+  if (pca_args.keep_percent >= 1) {
     return svd_out.V;
-  q.wait_and_throw();
+  }
 
   // Sort indices of l in descending order
   std::vector<SYCLIndexT> host_indices(estimated_nb_vecs);
   std::iota(begin(host_indices), end(host_indices), 0);
-  auto host_l = svd_out.L.template get_access<access::mode::read>();
+  auto& host_l = svd_out.L;
   std::sort(
       begin(host_indices), end(host_indices),
       [&](SYCLIndexT i1, SYCLIndexT i2) { return host_l[i1] > host_l[i2]; });
@@ -129,8 +129,9 @@ matrix_t<T> pca_svd(queue& q, matrix_t<T>& data, vector_t<T>& data_avg,
   SYCLIndexT nb_vecs = 0;
   float act_percent = 0;
   for (; nb_vecs < estimated_nb_vecs && act_percent < pca_args.keep_percent;
-       ++nb_vecs)
+       ++nb_vecs) {
     act_percent += host_l[host_indices[nb_vecs]] / svd_out.eig_vals_sum;
+  }
   nb_vecs = std::max(nb_vecs, pca_args.min_nb_vecs);
   std::cout << "Keeping " << nb_vecs << " vectors" << std::endl;
   assert(nb_vecs > 0);

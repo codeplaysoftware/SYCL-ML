@@ -36,8 +36,8 @@ namespace detail {
 class ml_em_add_weights;
 
 template <class T>
-void add_weights(queue& q, matrix_t<T>& plx, vector_t<T>& weights) {
-  q.submit([&](handler& cgh) {
+event add_weights(queue& q, matrix_t<T>& plx, vector_t<T>& weights) {
+  return q.submit([&plx, &weights](handler& cgh) {
     auto w_acc = weights.template get_access_1d<access::mode::read>(cgh);
     auto plx_acc = plx.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<0, ml_em_add_weights, T>>(
@@ -86,6 +86,7 @@ class log_model_per_label {
         _offset_noise(),
         _range_noise(),
         _weights(),
+        _host_weights(),
         _distributions() {}
 
   /**
@@ -160,8 +161,9 @@ class log_model_per_label {
     auto llk_padded_rng =
         get_optimal_nd_range(range<1>(padded_nb_obs - _nb_obs), id<1>(_nb_obs));
     std::function<void()> memset_llk = []() {};
-    if (llk_padded_rng.get_global_linear_range() > 0)
+    if (llk_padded_rng.get_global_linear_range() > 0) {
       memset_llk = [&]() { sycl_memset(q, new_llk, llk_padded_rng); };
+    }
 
     {
       auto eig_data = sycl_to_eigen(data);
@@ -192,8 +194,9 @@ class log_model_per_label {
         assert_real(diff_llk);
         std::cout << "#" << _idx << " iter " << act_iter << " diff_llk "
                   << diff_llk << std::endl;
-        if (diff_llk < _diff_llk_eps)
+        if (diff_llk < _diff_llk_eps) {
           break;
+        }
       }
       sycl_copy(q, new_llk, old_llk);
       ++act_iter;
@@ -206,9 +209,10 @@ class log_model_per_label {
     load_array(q, _offset_noise, prefix + "_offset_noise");
     load_array(q, _range_noise, prefix + "_range_noise");
     load_array(q, _weights, prefix + "_weights");
-    for (unsigned k = 0; k < M; ++k)
+    for (unsigned k = 0; k < M; ++k) {
       _distributions[k].load_from_disk(
           q, prefix + "_distrib_" + std::to_string(k));
+    }
   }
 
   void save_to_disk(queue& q) {
@@ -220,11 +224,14 @@ class log_model_per_label {
       save_array(q, _offset_noise, prefix + "_offset_noise");
       save_array(q, _range_noise, prefix + "_range_noise");
       save_array(q, _weights, prefix + "_weights");
-      for (unsigned k = 0; k < M; ++k)
+      for (unsigned k = 0; k < M; ++k) {
         _distributions[k].save_to_disk(
             q, prefix + "_distrib_" + std::to_string(k));
+      }
     }
 #else
+    std::cerr << "Error: Saving to disk is only supported on Unix for now."
+              << std::endl;
     assert(false);
 #endif
   }
@@ -248,6 +255,7 @@ class log_model_per_label {
   vector_t<DataType> _offset_noise;
   vector_t<DataType> _range_noise;
   vector_t<DataType> _weights;
+  std::array<DataType, M> _host_weights;
   std::array<Distribution, M> _distributions;
 
   /**
@@ -268,7 +276,8 @@ class log_model_per_label {
       auto plx_k = plx.get_row(k);
       _distributions[k].compute_dist(q, data, plx_k);
     }
-    q.wait_and_throw();  // wait for plx_k sub-buffers to write back in plx
+    // TODO: Remove wait later
+    q.wait_and_throw();  // Wait for plx_k sub-buffers to write back in plx
 
     detail::add_weights(q, plx, _weights);
 
@@ -321,17 +330,25 @@ class log_model_per_label {
               .sum(eig_dims_t<1>{1});
     }
 
-    auto host_weights = _weights.template get_access<access::mode::read>();
+    auto copy_event =
+        sycl_copy_device_to_host(q, _weights, _host_weights.data());
+    copy_event.wait_and_throw();
     DataType act_w;
     for (unsigned k = 0; k < M; ++k) {
-      act_w = host_weights[k];
-      if (act_w < _weight_eps) {  // Re-randomize the kth distribution
+      act_w = _host_weights[k];
+      if (act_w < _weight_eps) {
+        // Re-randomize the kth distribution (should not happen often)
         std::cout << "Warning: EM(" << _idx << ") weight(" << k
-                  << ") is too small: " << act_w << std::endl;
+                  << ") is too small: " << act_w << "\n"
+                  << "This may indicate that too many distributions (M) are "
+                     "used for this problem."
+                  << std::endl;
         unsigned max_idx = 0;
-        for (unsigned i = 0; i < M; ++i)
-          if (host_weights[i] > host_weights[max_idx])
+        for (unsigned i = 0; i < M; ++i) {
+          if (_host_weights[i] > _host_weights[max_idx]) {
             max_idx = i;
+          }
+        }
         assert(max_idx != k);
         act_w = static_cast<DataType>(_nb_obs) / M;
         _weights.write_from_host(k, act_w);

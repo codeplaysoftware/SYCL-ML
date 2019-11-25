@@ -47,7 +47,7 @@ class classifier {
    * has not been called
    */
   virtual void train(queue& q, matrix_t<DataT>& dataset,
-                     vector_t<LabelT>& labels, unsigned nb_labels = 0) = 0;
+                     std::vector<LabelT>& labels, unsigned nb_labels = 0) = 0;
 
   /**
    * @brief Predict labels with the given observations.
@@ -73,9 +73,10 @@ class classifier {
       unsigned nb_labels,
       const std::unordered_map<LabelT, unsigned>& label_user_to_label_idx) {
     std::vector<unsigned> cm(nb_labels * nb_labels, 0);
-    for (unsigned i = 0; i < nb_obs; ++i)
+    for (unsigned i = 0; i < nb_obs; ++i) {
       cm[label_user_to_label_idx.at(expected[i]) * nb_labels +
          label_user_to_label_idx.at(predicted[i])] += 1;
+    }
 
     double success_rate = 0;
     double precision = 0;
@@ -112,11 +113,12 @@ class classifier {
     char prev_fill = std::cout.fill(' ');
     for (unsigned i = 0; i < nb_labels; ++i) {
       for (unsigned j = 0; j < nb_labels; ++j) {
-        if (j < nb_labels - 1)
+        if (j < nb_labels - 1) {
           std::cout << std::left << std::setw(5) << cm[i * nb_labels + j]
                     << ' ';
-        else
+        } else {
           std::cout << std::left << cm[i * nb_labels + j] << '\n';
+        }
       }
     }
     std::cout.fill(prev_fill);
@@ -154,19 +156,20 @@ class classifier {
   /**
    * @brief Compute the list of indexes of each labels.
    *
-   * @tparam HostLabels any type with a squared bracket accessor
+   * @tparam HostLabelsT any type with a squared bracket accessor
    * @param host_labels
    * @param nb_labels number of different labels
    * @param nb_obs number of element in host_labels
    * @return labels_indices
    */
-  template <class HostLabels>
+  template <class HostLabelsT>
   std::vector<std::vector<SYCLIndexT>> get_labels_indices(
-      const HostLabels& host_labels, unsigned nb_labels, unsigned nb_obs) {
+      const HostLabelsT& host_labels, unsigned nb_labels, unsigned nb_obs) {
     std::vector<std::vector<SYCLIndexT>> labels_indices(nb_labels);
-    for (unsigned i = 0; i < nb_obs; ++i)
+    for (unsigned i = 0; i < nb_obs; ++i) {
       labels_indices[this->_label_user_to_label_idx[host_labels[i]]].push_back(
           i);
+    }
     return labels_indices;
   }
 
@@ -184,9 +187,10 @@ class classifier {
    */
   template <class HostLabelT>
   void process_labels(const HostLabelT& host_labels, unsigned nb_labels) {
-    if (!_label_user_to_label_idx
-             .empty())  // Labels have been set by the user beforehand
+    // Labels have been set by the user beforehand
+    if (!_label_user_to_label_idx.empty()) {
       return;
+    }
 
     // Find all different labels
     _host_label_idx_to_label_user.reserve(nb_labels);
@@ -195,8 +199,9 @@ class classifier {
       auto user_label = host_labels[i];
       auto it = std::find(_host_label_idx_to_label_user.begin(),
                           _host_label_idx_to_label_user.end(), user_label);
-      if (it == _host_label_idx_to_label_user.end())
+      if (it == _host_label_idx_to_label_user.end()) {
         _host_label_idx_to_label_user.push_back(user_label);
+      }
     }
     std::sort(_host_label_idx_to_label_user.begin(),
               _host_label_idx_to_label_user.end());
@@ -214,8 +219,9 @@ class classifier {
         range<1>(nb_labels));
 
     // Map label user back to label idx
-    for (unsigned i = 0; i < nb_labels; ++i)
+    for (unsigned i = 0; i < nb_labels; ++i) {
       _label_user_to_label_idx[_host_label_idx_to_label_user[i]] = i;
+    }
   }
 
   /**

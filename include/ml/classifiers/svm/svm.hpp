@@ -90,19 +90,20 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
    * @see train
    * @param q
    * @param dataset size mxn
-   * @param labels size m, assumed to have only 2 different values
+   * @param host_labels size m, assumed to have only 2 different values
    */
   void train_binary(queue& q, matrix_t<DataType>& dataset,
-                    vector_t<LabelType>& labels) {
+                    std::vector<LabelType>& host_labels) {
     if (_nb_labels != 2) {  // skip setup_train if _nb_labels is already 2
       _nb_labels = 2;
-      if (!setup_train(dataset, labels, _nb_labels))
+      if (!setup_train(dataset, host_labels, _nb_labels)) {
         return;
+      }
     }
 
     assert(this->get_nb_labels() == 2);
-    auto internal_labels =
-        get_internal_labels(q, labels, this->_host_label_idx_to_label_user[0]);
+    auto internal_labels = get_internal_labels(
+        q, host_labels, this->_host_label_idx_to_label_user[0]);
 
     auto nb_obs_pow_2 = internal_labels.get_kernel_range()[0];
     if (access_ker_dim(dataset, 0) < nb_obs_pow_2 ||
@@ -150,23 +151,33 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     return predictions;
   }
 
-  void train(queue& q, matrix_t<DataType>& dataset, vector_t<LabelType>& labels,
+  /**
+   * @brief Train a generic SVM.
+   *
+   * Train multiple binary SVMs with the One vs One strategy.
+   *
+   * @see train_binary
+   * @param q
+   * @param dataset size mxn
+   * @param host_labels size m
+   * @param nb_labels provide the number of different labels if known (optional)
+   */
+  void train(queue& q, matrix_t<DataType>& dataset,
+             std::vector<LabelType>& host_labels,
              unsigned nb_labels = 0) override {
-    if (!setup_train(dataset, labels, nb_labels))
+    if (!setup_train(dataset, host_labels, nb_labels)) {
       return;
+    }
 
     _nb_labels = nb_labels;
     if (_nb_labels == 2) {
-      train_binary(q, dataset, labels);
+      train_binary(q, dataset, host_labels);
       return;
     }
     _smo_outs.clear();
 
     // Compute indices for each labels
     SYCLIndexT nb_obs = access_data_dim(dataset, 0);
-    // Labels have already been copied to host by setup_train
-    auto host_labels =
-        labels.template get_access<access::mode::read>(range<1>(0), id<1>(0));
     auto indices_per_label =
         this->get_labels_indices(host_labels, nb_labels, nb_obs);
 
@@ -186,13 +197,15 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     }
 
     // Pad data_dim dataset
-    if (access_ker_dim(dataset, 1) != _data_dim_pow2)
+    if (access_ker_dim(dataset, 1) != _data_dim_pow2) {
       dataset = pad_data(q, dataset, nb_obs, _data_dim_pow2);
+    }
 
     // Split data
     std::vector<matrix_t<DataType>> data_per_label;
-    for (auto& label_indices : indices_per_label)
+    for (auto& label_indices : indices_per_label) {
       data_per_label.push_back(split_by_index(q, dataset, label_indices));
+    }
 
     // One vs One training
     unsigned nb_svms = nb_labels * (nb_labels - 1) / 2;
@@ -245,16 +258,25 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     }
   }
 
+  /**
+   * @brief Predict labels for a generic SVM.
+   *
+   * @param q
+   * @param dataset size mxn
+   * @return m predicted labels
+   */
   vector_t<LabelType> predict(queue& q, matrix_t<DataType>& dataset) override {
-    if (_nb_labels == 2)
+    if (_nb_labels == 2) {
       return predict_binary(q, dataset);
+    }
     assert_eq(access_data_dim(dataset, 1), _data_dim);
 
     // dataset needs to be padded the same way it was during the training
     auto old_ker_nb_obs = access_ker_dim(dataset, 0);
     if (!is_pow2(old_ker_nb_obs) ||
-        access_ker_dim(dataset, 1) != _data_dim_pow2)
+        access_ker_dim(dataset, 1) != _data_dim_pow2) {
       dataset = pad_data(q, dataset, to_pow2(old_ker_nb_obs), _data_dim_pow2);
+    }
 
     auto nb_obs = access_data_dim(dataset, 0);
     auto ker_nb_obs = access_ker_dim(dataset, 0);
@@ -270,11 +292,13 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     matrix_t<DataType> labels_counter(range<2>(_nb_labels, ker_nb_obs));
     sycl_memset(q, labels_counter);
     unsigned act_smo = 0;
-    for (unsigned i = 0; i < _nb_labels - 1; ++i)
-      for (unsigned j = i + 1; j < _nb_labels; ++j)
+    for (unsigned i = 0; i < _nb_labels - 1; ++i) {
+      for (unsigned j = i + 1; j < _nb_labels; ++j) {
         predict_increment_counter(q, dataset, labels_counter,
                                   _smo_outs[act_smo++], i, j, nb_obs,
                                   ker_nb_obs, predictions.kernel_range);
+      }
+    }
 
     predict_reduce_counter(q, labels_counter, predictions);
 
@@ -302,19 +326,19 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
    *
    * @see check_nb_labels
    * @param[in] dataset
-   * @param[in] labels
+   * @param[in] host_labels
    * @param[in, out] nb_labels
    * @return true if training can begin
    */
-  bool setup_train(matrix_t<DataType>& dataset, vector_t<LabelType>& labels,
-                   unsigned& nb_labels) {
-    if (!this->check_nb_labels(nb_labels))
+  bool setup_train(matrix_t<DataType>& dataset,
+                   std::vector<LabelType>& host_labels, unsigned& nb_labels) {
+    if (!this->check_nb_labels(nb_labels)) {
       return false;
+    }
 
     SYCLIndexT nb_obs = access_data_dim(dataset, 0);
-    assert_eq(nb_obs, labels.get_count());
+    assert_eq(nb_obs, host_labels.size());
 
-    auto host_labels = labels.template get_access<access::mode::read>();
     this->process_labels(host_labels, nb_labels);
 
     _data_dim = access_data_dim(dataset, 1);
@@ -346,7 +370,7 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
         range<2>(nb_obs, obs_size),
         get_optimal_nd_range(padded_nb_obs, padded_obs_size));
 
-    q.submit([&](handler& cgh) {
+    q.submit([&old_data, &new_data, nb_obs, obs_size](handler& cgh) {
       auto old_acc = old_data.template get_access_2d<access::mode::read>(cgh);
       auto new_acc =
           new_data.template get_access_2d<access::mode::discard_write>(cgh);
@@ -365,17 +389,25 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
   /**
    * @brief Cast the user labels to -1 or 1 label.
    *
+   * It is the user responsability to keep the user_labels alive long enough.
+   *
    * @param q
-   * @param[in] user_labels assume there are only 2 different labels
+   * @param[in] host_user_labels assume there are only 2 different labels
    * @param minus_one_label label to cast to -1, the other one becomes 1
    * @return internal_labels
    */
   vector_t<InternalLabelType> get_internal_labels(
-      queue& q, vector_t<LabelType>& user_labels, LabelType minus_one_label) {
-    auto nb_user_labels = user_labels.data_range[0];
+      queue& q, std::vector<LabelType>& host_user_labels,
+      LabelType minus_one_label) {
+    auto nb_user_labels = host_user_labels.size();
+    vector_t<LabelType> user_labels(host_user_labels.data(),
+                                    range<1>(nb_user_labels));
+    user_labels.set_final_data(nullptr);
     vector_t<InternalLabelType> internal_labels(
-        user_labels.data_range, get_optimal_nd_range(to_pow2(nb_user_labels)));
-    q.submit([&](handler& cgh) {
+        range<1>(nb_user_labels),
+        get_optimal_nd_range(to_pow2(nb_user_labels)));
+    q.submit([&user_labels, &internal_labels, nb_user_labels,
+              minus_one_label](handler& cgh) {
       auto user_acc =
           user_labels.template get_access_1d<access::mode::read>(cgh);
       auto internal_acc =
@@ -400,11 +432,12 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
    * @param nb_obs_i
    * @param nb_obs_j
    * @param[out] internal_labels
+   * @return A SYCL event corresponding to the submitted operation
    */
-  void create_internal_labels(queue& q, SYCLIndexT nb_obs_i,
-                              SYCLIndexT nb_obs_j,
-                              vector_t<InternalLabelType>& internal_labels) {
-    q.submit([&](handler& cgh) {
+  event create_internal_labels(queue& q, SYCLIndexT nb_obs_i,
+                               SYCLIndexT nb_obs_j,
+                               vector_t<InternalLabelType>& internal_labels) {
+    return q.submit([&internal_labels, nb_obs_i, nb_obs_j](handler& cgh) {
       auto internal_acc =
           internal_labels.template get_access_1d<access::mode::discard_write>(
               cgh);
@@ -441,7 +474,8 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     auto minus_one_label = this->_host_label_idx_to_label_user[0];
     auto one_label = this->_host_label_idx_to_label_user[1];
     auto rho = smo_out.rho;
-    q.submit([&](handler& cgh) {
+    q.submit([&ker_values, &smo_out, &predictions, rho, one_label,
+              minus_one_label, nb_sv](handler& cgh) {
       auto ker_values_acc =
           ker_values.template get_access_2d<access::mode::read>(cgh);
       auto a_acc =
@@ -452,9 +486,10 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
           predictions.get_nd_range(), [=](nd_item<1> item) {
             auto col = item.get_global_id(0);
             DataType sum = rho;
-            for (SYCLIndexT i = 0; i < nb_sv;
-                 ++i)  // Loop is (usually) small enough
+            // Loop is (usually) small enough
+            for (SYCLIndexT i = 0; i < nb_sv; ++i) {
               sum += a_acc(i) * ker_values_acc(i, col);
+            }
             pred_acc(col) = (sum < 0) ? minus_one_label : one_label;
           });
     });
@@ -485,7 +520,8 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     _ker(q, smo_out.svs, dataset, ker_values);
     auto rho = smo_out.rho;
 
-    q.submit([&](handler& cgh) {
+    q.submit([&ker_values, &smo_out, &labels_counter, rho, nb_sv, i, j,
+              kernel_range](handler& cgh) {
       auto ker_values_acc =
           ker_values.template get_access_2d<access::mode::read>(cgh);
       auto a_acc =
@@ -496,9 +532,10 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
           kernel_range, [=](nd_item<1> item) {
             auto col = item.get_global_id(0);
             DataType sum = rho;
-            for (SYCLIndexT k = 0; k < nb_sv;
-                 ++k)  // Loop is (usually) small enough
+            // Loop is (usually) small enough
+            for (SYCLIndexT k = 0; k < nb_sv; ++k) {
               sum += a_acc(k) * ker_values_acc(k, col);
+            }
             auto prediction = (sum < 0) ? i : j;
             counter_acc(prediction, col) += 1;
           });
@@ -511,11 +548,13 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
    * @param q
    * @param[in] labels_counter
    * @param[out] predictions
+   * @return A SYCL event corresponding to the submitted operation
    */
-  void predict_reduce_counter(queue& q, matrix_t<DataType>& labels_counter,
-                              vector_t<LabelType>& predictions) {
+  event predict_reduce_counter(queue& q, matrix_t<DataType>& labels_counter,
+                               vector_t<LabelType>& predictions) {
     auto nb_labels = _nb_labels;
-    q.submit([&](handler& cgh) {
+    return q.submit([this, &labels_counter, &predictions,
+                     nb_labels](handler& cgh) {
       auto counter_acc =
           labels_counter.template get_access_2d<access::mode::read>(cgh);
       auto label_idx_to_label_user_acc =
@@ -527,10 +566,11 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
           predictions.get_nd_range(), [=](nd_item<1> item) {
             auto col = item.get_global_id(0);
             SYCLIndexT max_idx = 0;
-            for (SYCLIndexT i = 1; i < nb_labels;
-                 ++i) {  // Loop is small enough
-              if (counter_acc(i, col) > counter_acc(max_idx, col))
+            // Loop is small enough
+            for (SYCLIndexT i = 1; i < nb_labels; ++i) {
+              if (counter_acc(i, col) > counter_acc(max_idx, col)) {
                 max_idx = i;
+              }
             }
             pred_acc(col) = label_idx_to_label_user_acc(max_idx);
           });

@@ -45,8 +45,9 @@ void assert_almost_eq(T actual, T expected, const T eps = EPS) {
 template <class T>
 void assert_vec_almost_eq(const T* actual, const T* expected, size_t size,
                           const T eps = EPS) {
-  for (size_t i = 0; i < size; ++i)
+  for (size_t i = 0; i < size; ++i) {
     assert_almost_eq(actual[i], expected[i], eps);
+  }
 }
 
 template <class T, size_t DIM>

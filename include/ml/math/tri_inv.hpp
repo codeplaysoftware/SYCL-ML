@@ -27,7 +27,8 @@ class ml_try_inv;
  *
  * Uses the Gauss-Jordan method.
  *
- * @see tri_solve(queue&, matrix_t<T>&, matrix_t<T>&)
+ * @see tri_solve(queue&, matrix_t<T>&, matrix_t<T>&) for a more numerically
+ * stable solution
  * @tparam T
  * @param q
  * @param[in] tri
@@ -35,11 +36,12 @@ class ml_try_inv;
  * @param t_buffer temporary buffer must be of size nxn at least.
  * @param t_pow_buffer temporary buffer must be of size nxn at least.
  * @param data_dim_1_nd_rng 1d kernel range of size n.
+ * @return A SYCL event corresponding to the last submitted operation
  */
 template <class T>
-void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
-             matrix_t<T>& t_buffer, matrix_t<T>& t_pow_buffer,
-             const nd_range<1>& data_dim_1_nd_rng) {
+event tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
+              matrix_t<T>& t_buffer, matrix_t<T>& t_pow_buffer,
+              const nd_range<1>& data_dim_1_nd_rng) {
   assert(&tri != &inv);
   assert(&tri != &t_buffer);
   assert(&tri != &t_pow_buffer);
@@ -57,7 +59,7 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
   assert_rng_less_or_eq(data_dim_2_rng, t_buffer.data_range);
   assert_rng_less_or_eq(data_dim_2_rng, t_pow_buffer.data_range);
 
-  q.submit([&](handler& cgh) {
+  q.submit([&tri, &t_buffer, &t_pow_buffer, &inv](handler& cgh) {
     auto tri_acc = tri.template get_access_2d<access::mode::read>(cgh);
     auto t_acc =
         t_buffer.template get_access_2d<access::mode::discard_write>(cgh);
@@ -75,40 +77,42 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
         });
   });
 
+  auto tri_nd_range = tri.get_nd_range();
   for (IndexT i = 2; i < data_dim; ++i) {  // i = 0 -> id; i = 1 -> t_acc
     // mat_mul where we know some zeros
-    q.submit([&](handler& cgh) {
+    q.submit([&t_pow_buffer, &t_buffer, &inv, tri_nd_range, data_dim,
+              i](handler& cgh) {
       auto t_pow_acc =
           t_pow_buffer.template get_access_2d<access::mode::read_write>(cgh);
       auto t_acc = t_buffer.template get_access_2d<access::mode::read>(cgh);
       auto inv_acc = inv.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<2, ml_try_inv, T>>(
-          tri.get_nd_range(), [=](nd_item<2> item) {
+          tri_nd_range, [=](nd_item<2> item) {
             auto row = item.get_global_id(0);
             auto col = item.get_global_id(1);
             if (row < data_dim - i && col < data_dim - i && col >= row) {
               auto diag_idx = col - row;
               col += i;
               T sum = 0;
-              for (size_t j = 0; j <= diag_idx;
-                   ++j) {  // don't use the full line or column because of zeros
+              // don't use the full line or column because of zeros
+              for (size_t j = 0; j <= diag_idx; ++j) {
                 sum += t_pow_acc(row, row + i + j - 1) *
                        t_acc(row + i + j - 1, col);
               }
-              t_pow_acc(col, row) =
-                  sum;  // Store the result in the lower triangle part and
-                        // transpose it later
+              // Store the result in the lower triangle part and transpose it
+              // later
+              t_pow_acc(col, row) = sum;
               inv_acc(row, col) += sum;
             }
           });
     });
 
     // Transpose lower part of t_pow_acc to upper part
-    q.submit([&](handler& cgh) {
+    q.submit([&t_pow_buffer, tri_nd_range, data_dim, i](handler& cgh) {
       auto t_pow_acc =
           t_pow_buffer.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<3, ml_try_inv, T>>(
-          tri.get_nd_range(), [=](nd_item<2> item) {
+          tri_nd_range, [=](nd_item<2> item) {
             auto row = item.get_global_id(0);
             auto col = item.get_global_id(1);
             if (row < data_dim - i && col < data_dim - i && col >= row) {
@@ -119,7 +123,7 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
     });
   }
 
-  q.submit([&](handler& cgh) {
+  return q.submit([&tri, &inv](handler& cgh) {
     auto tri_acc = tri.template get_access_2d<access::mode::read>(cgh);
     auto inv_acc = inv.template get_access_2d<access::mode::read_write>(cgh);
     cgh.parallel_for<NameGen<4, ml_try_inv, T>>(
@@ -141,17 +145,18 @@ void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv,
  * @param q
  * @param[in] tri
  * @param[out] inv
+ * @return A SYCL event corresponding to the last submitted operation
  */
 template <class T>
-void tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv) {
+event tri_inv(queue& q, matrix_t<T>& tri, matrix_t<T>& inv) {
   tri.assert_square();
   assert_rng_eq(tri.get_kernel_range(), inv.get_kernel_range());
 
   matrix_t<T> t_buffer{tri.data_range, tri.kernel_range};
   matrix_t<T> t_pow_buffer{tri.data_range, tri.kernel_range};
 
-  tri_inv(q, tri, inv, t_buffer, t_pow_buffer,
-          get_optimal_nd_range(tri.data_range[0]));
+  return tri_inv(q, tri, inv, t_buffer, t_pow_buffer,
+                 get_optimal_nd_range(tri.data_range[0]));
 }
 
 }  // namespace ml

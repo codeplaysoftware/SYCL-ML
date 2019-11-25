@@ -28,7 +28,7 @@ namespace ml {
 namespace detail {
 
 /**
- * @brief Cache either the whole kernel matrix or only the last used ones.
+ * @brief Cache either the whole kernel matrix or only the last row used.
  *
  * @tparam KerFun
  * @tparam T
@@ -38,25 +38,23 @@ class kernel_cache {
  public:
   kernel_cache(queue& q, const KerFun& ker, matrix_t<T>& x,
                const range<1>& data_rng, const nd_range<1>& ker_rng)
-      : _q(q),
-        _ker(ker),
-        _x(x),
-        _ker_diag_buf(data_rng, ker_rng),
-        _host_ker_diag(_ker_diag_buf, range<1>(0), id<1>(0)) {
+      : _q(q), _ker(ker), _x(x), _ker_diag_buf(data_rng, ker_rng) {
     // Compute the diagonal values of ker only once
     ker(q, x, _ker_diag_buf);
     auto m = access_ker_dim(x, 0);
     auto padded_m = to_pow2(m);
     auto pad_size_rng = get_optimal_nd_range(range<1>(padded_m - m), id<1>(m));
-    if (pad_size_rng.get_global_linear_range() > 0)
+    if (pad_size_rng.get_global_linear_range() > 0) {
       sycl_memset(q, _ker_diag_buf, pad_size_rng);
-    _host_ker_diag = _ker_diag_buf.template get_access<access::mode::read>();
+    }
   }
 
   virtual vector_t<T> get_ker_row(SYCLIndexT row) = 0;
 
   inline vector_t<T>& get_ker_diag() { return _ker_diag_buf; }
-  inline T get_ker_diag(SYCLIndexT row) { return _host_ker_diag[row]; }
+  inline T get_ker_diag(SYCLIndexT row) {
+    return _ker_diag_buf.read_to_host(row);
+  }
 
  protected:
   queue& _q;
@@ -64,13 +62,12 @@ class kernel_cache {
 
   matrix_t<T>& _x;
   vector_t<T> _ker_diag_buf;  // diagonal of kernel matrix
-  accessor<T, 1, access::mode::read, access::target::host_buffer>
-      _host_ker_diag;
 };
 
 /**
- * @brief Compute the whole kernel matrix once (if resulting matrix is too big,
- * use kernel_cache_row instead).
+ * @brief Compute the whole kernel matrix once
+ *
+ * If resulting matrix is too big, use kernel_cache_row instead.
  *
  * @tparam KerFun
  * @tparam T
@@ -154,7 +151,7 @@ class kernel_cache_row : public kernel_cache<KerFun, T> {
  private:
   SYCLIndexT _nb_cache_line;
   std::unordered_map<SYCLIndexT, ml::vector_t<T>>
-      _ker_cache;                            // cached rows of kernel matrix
+      _ker_cache;                            // Cached rows of kernel matrix
   std::list<SYCLIndexT> _cache_last_access;  // Indices of last used rows
 };
 

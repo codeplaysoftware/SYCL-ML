@@ -45,8 +45,9 @@ void assert_eq(T actual, T expected) {
 
 template <class T>
 void assert_vec_eq(const T& actual, const T& expected, size_t size) {
-  for (size_t i = 0; i < size; ++i)
+  for (size_t i = 0; i < size; ++i) {
     assert_eq(actual[i], expected[i]);
+  }
 }
 
 template <int DIM>
@@ -72,8 +73,9 @@ inline void assert_rng_size_less_or_eq(const range<DIM>& r,
 
 template <data_dim D = LIN, int DIM>
 void assert_rng_less_or_eq(const range<DIM>& r, const range<DIM>& high_r) {
-  for (int i = 0; i < DIM; ++i)
+  for (int i = 0; i < DIM; ++i) {
     assert_less_or_eq(r[i], high_r[i]);
+  }
 }
 
 template <>
@@ -106,12 +108,13 @@ void assert_real(T x) {
   if (!std::isfinite(x)) {
     std::stringstream ss;
     ss << "Error: value is ";
-    if (std::isnan(x))
+    if (std::isnan(x)) {
       ss << "nan";
-    else if (std::isinf(x))
+    } else if (std::isinf(x)) {
       ss << "inf";
-    else
+    } else {
       ss << x;
+    }
     std::cerr << ss.str() << std::endl;
     assert(false);
   }

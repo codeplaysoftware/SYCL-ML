@@ -21,12 +21,13 @@
 #include "utils/scoped_timer.hpp"
 #include "utils/sycl_utils.hpp"
 
-template <class Cond, class LabelT, class IndexT>
-void select_indices(LabelT* data, unsigned data_size,
-                    std::vector<IndexT>& indices, Cond cond = Cond()) {
-  for (unsigned i = 0; i < data_size; ++i) {
-    if (cond(data[i]))
+template <class Cond, class ContainerT, class IndexT>
+void select_indices(ContainerT data, std::vector<IndexT>& indices,
+                    Cond cond = Cond()) {
+  for (unsigned i = 0; i < data.size(); ++i) {
+    if (cond(data[i])) {
       indices.push_back(i);
+    }
   }
 }
 
@@ -46,8 +47,8 @@ void run_binary_svm(const std::string& mnist_path) {
   ml::svm<KernelType, LabelT> svm(5, KernelType(0.05), 100);
   */
 
-  std::shared_ptr<LabelT> host_split_expected_test_labels;
-  std::shared_ptr<LabelT> host_split_predicted_test_labels;
+  std::vector<LabelT> host_split_expected_test_labels;
+  std::vector<LabelT> host_split_predicted_test_labels;
   unsigned nb_test_obs;
   {
     cl::sycl::queue& q = create_queue();
@@ -66,21 +67,24 @@ void run_binary_svm(const std::string& mnist_path) {
           nb_train_obs, false, true, normalize_factor);
       auto host_train_labels = read_mnist_labels<LabelT>(
           mnist_get_train_labels_path(mnist_path), nb_train_obs);
+      if (host_train_data.empty() || host_train_labels.empty()) {
+        return;
+      }
 
       // Copy dataset and labels to device
       ml::matrix_t<DataT> sycl_train_data(
-          host_train_data, cl::sycl::range<2>(nb_train_obs, padded_obs_size));
-      sycl_train_data.data_range[1] =
-          obs_size;  // Specify the real size of an observation
+          host_train_data.data(),
+          cl::sycl::range<2>(nb_train_obs, padded_obs_size));
+      // Specify the real size of an observation
+      sycl_train_data.data_range[1] = obs_size;
       sycl_train_data.set_final_data(nullptr);
-      ml::vector_t<LabelT> sycl_train_labels(host_train_labels,
+      ml::vector_t<LabelT> sycl_train_labels(host_train_labels.data(),
                                              cl::sycl::range<1>(nb_train_obs));
       sycl_train_labels.set_final_data(nullptr);
 
       // Select 0s and 1s
       std::vector<unsigned> indices;
-      select_indices(host_train_labels.get(), nb_train_obs, indices,
-                     select_labels);
+      select_indices(host_train_labels, indices, select_labels);
       auto split_train_data = split_by_index(q, sycl_train_data, indices);
       auto split_train_labels = split_by_index(q, sycl_train_labels, indices);
 
@@ -89,10 +93,19 @@ void run_binary_svm(const std::string& mnist_path) {
       split_train_data =
           apply_pca.compute_and_apply(q, split_train_data, pca_args);
 
+      // Copy labels to host
+      std::vector<LabelT> host_split_train_labels(
+          split_train_labels.data_dim_size());
+      auto copy_label_event = sycl_copy_device_to_host(
+          q, split_train_labels, host_split_train_labels.data(), 0,
+          host_split_train_labels.size());
+      copy_label_event.wait_and_throw();
+
       // Train
       TIME(train_binary_svm);
-      svm.train_binary(q, split_train_data, split_train_labels);
-      q.wait_and_throw();  // wait to measure the correct training time
+      svm.train_binary(q, split_train_data, host_split_train_labels);
+      // Wait to measure the correct training time
+      q.wait_and_throw();
     }
 
     auto& smo_out = svm.get_smo_outs().front();
@@ -111,25 +124,28 @@ void run_binary_svm(const std::string& mnist_path) {
           nb_test_obs, false, true, normalize_factor);
       auto host_expected_test_labels = read_mnist_labels<LabelT>(
           mnist_get_test_labels_path(mnist_path), nb_test_obs);
+      if (host_test_data.empty() || host_expected_test_labels.empty()) {
+        return;
+      }
 
       // Copy labels on device
       ml::matrix_t<DataT> sycl_test_data(
-          host_test_data, cl::sycl::range<2>(nb_test_obs, padded_obs_size));
-      sycl_test_data.data_range[1] =
-          obs_size;  // Specify the real size of an observation
+          host_test_data.data(),
+          cl::sycl::range<2>(nb_test_obs, padded_obs_size));
+      // Specify the real size of an observation
+      sycl_test_data.data_range[1] = obs_size;
       sycl_test_data.set_final_data(nullptr);
 
       // Select 0s and 1s
       std::vector<unsigned> indices;
-      select_indices(host_expected_test_labels.get(), nb_test_obs, indices,
-                     select_labels);
+      select_indices(host_expected_test_labels, indices, select_labels);
       auto split_test_data = split_by_index(q, sycl_test_data, indices);
       nb_test_obs = indices.size();
-      host_split_expected_test_labels =
-          ml::make_shared_array(new LabelT[nb_test_obs]);
-      for (unsigned i = 0; i < nb_test_obs; ++i)
-        host_split_expected_test_labels.get()[i] =
-            host_expected_test_labels.get()[indices[i]];
+      host_split_expected_test_labels.reserve(nb_test_obs);
+      for (unsigned i = 0; i < nb_test_obs; ++i) {
+        host_split_expected_test_labels.push_back(
+            host_expected_test_labels[indices[i]]);
+      }
 
       // Apply the same basis than the PCA during the training
       split_test_data = apply_pca.apply(q, split_test_data);
@@ -137,27 +153,27 @@ void run_binary_svm(const std::string& mnist_path) {
       // Inference
       TIME(predict_binary_svm);
       auto sycl_predicted_test_labels = svm.predict(q, split_test_data);
-      auto prediction_size =
-          sycl_predicted_test_labels
-              .get_count();  // Can be rounded up to a power of 2
-      host_split_predicted_test_labels =
-          ml::make_shared_array(new LabelT[prediction_size]);
+      // Can be rounded up to a power of 2
+      auto prediction_size = sycl_predicted_test_labels.get_count();
+      host_split_predicted_test_labels.resize(prediction_size);
       sycl_predicted_test_labels.set_final_data(
-          host_split_predicted_test_labels);
-      q.wait_and_throw();  // wait to measure the correct prediction time
+          host_split_predicted_test_labels.data());
+      // Wait to measure the correct prediction time
+      q.wait_and_throw();
     }
 
     clear_eigen_device();
   }
 
-  svm.print_score(host_split_predicted_test_labels.get(),
-                  host_split_expected_test_labels.get(), nb_test_obs);
+  svm.print_score(host_split_predicted_test_labels.data(),
+                  host_split_expected_test_labels.data(), nb_test_obs);
 }
 
 int main(int argc, char** argv) {
   std::string mnist_path = "data/mnist";
-  if (argc >= 2)
+  if (argc >= 2) {
     mnist_path = argv[1];
+  }
   try {
     run_binary_svm<float, uint8_t>(mnist_path);
   } catch (cl::sycl::exception e) {

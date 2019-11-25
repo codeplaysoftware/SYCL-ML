@@ -101,7 +101,8 @@ class buffer_t : public sycl_vec_t<T> {
   buffer_t(const range<DIM>& r, const nd_range<DIM>& k)
       : buffer_t(sycl_vec_t<T>(range<1>(k.get_global_range().size())), r, k) {
 #if ML_DEBUG_BOUND_CHECK
-    if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
+    if (k.get_global_range().size() &&
+        (std::is_same<T, float>::value || std::is_same<T, double>::value)) {
       T init = std::numeric_limits<T>::quiet_NaN();
       sycl_memset(get_eigen_device().sycl_queue(), *this,
                   get_1d_kernel_nd_range(), init);
@@ -115,11 +116,11 @@ class buffer_t : public sycl_vec_t<T> {
   template <class HostPtrT>
   buffer_t(HostPtrT host_ptr, range<DIM> r)
       : buffer_t(sycl_vec_t<T>(host_ptr, r.size()), r) {}
-  buffer_t(std::unique_ptr<T[]>&& host_ptr, range<DIM> r)
-      : buffer_t(sycl_vec_t<T>(std::move(host_ptr), r.size()), r) {}
 
   buffer_t()
-      : buffer_t(range<DIM>(), nd_range<DIM>(range<DIM>(), range<DIM>())) {}
+      : sycl_vec_t<T>(),
+        data_range(),
+        kernel_range(range<DIM>(), range<DIM>()) {}
 
   /**
    * @brief Return a continuous sub-buffer.
@@ -143,14 +144,18 @@ class buffer_t : public sycl_vec_t<T> {
     // range<1>(kernel_range.get_global_linear_range()));
     auto size = cl::sycl::range<1>(kernel_range.get_global_linear_range());
     auto sub_buf = sycl_vec_t<T>(size);
-    get_eigen_device().sycl_queue().submit([&](cl::sycl::handler& cgh) {
-      auto src_acc = this->template get_access<cl::sycl::access::mode::read>(
-          cgh, size, offset);
-      auto dst_acc =
-          sub_buf.template get_access<cl::sycl::access::mode::discard_write>(
-              cgh);
-      cgh.copy(src_acc, dst_acc);
-    });
+    auto event = get_eigen_device().sycl_queue().submit(
+        [this, &sub_buf, size, offset](cl::sycl::handler& cgh) {
+          auto src_acc =
+              this->template get_access<cl::sycl::access::mode::read>(cgh, size,
+                                                                      offset);
+          auto dst_acc =
+              sub_buf
+                  .template get_access<cl::sycl::access::mode::discard_write>(
+                      cgh);
+          cgh.copy(src_acc, dst_acc);
+        });
+    event.wait_and_throw();
     return buffer_t<T, OUT_DIM>(sub_buf, data_range, kernel_range);
   }
 
@@ -315,9 +320,10 @@ class buffer_1d_acc_t {
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT x) const {
 #if ML_DEBUG_BOUND_CHECK
-    if (x >= _range[0])
+    if (x >= _range[0]) {
       printf("Warning accessing at (%lu) from buffer of size (%lu)\n", x,
              _range[0]);
+    }
 #endif
     return _acc[x];
   }
@@ -337,9 +343,10 @@ class buffer_2d_acc_t {
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT r, SYCLIndexT c) const {
 #if ML_DEBUG_BOUND_CHECK
-    if (r >= access_rng<D>(_range, 0) || c >= access_rng<D>(_range, 1))
+    if (r >= access_rng<D>(_range, 0) || c >= access_rng<D>(_range, 1)) {
       printf("Warning accessing at (%lu, %lu) from buffer of size (%lu, %lu)\n",
              r, c, access_rng<D>(_range, 0), access_rng<D>(_range, 1));
+    }
 #endif
     return _acc[detail::get_index_2d<D>::compute(r, c, _range[1])];
   }
@@ -359,11 +366,12 @@ class buffer_3d_acc_t {
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT x, SYCLIndexT y, SYCLIndexT z) const {
 #if ML_DEBUG_BOUND_CHECK
-    if (x >= _range[0] || y >= _range[1] || z >= _range[2])
+    if (x >= _range[0] || y >= _range[1] || z >= _range[2]) {
       printf(
           "Warning accessing at (%lu, %lu, %lu) from buffer of size (%lu, %lu, "
           "%lu)\n",
           x, y, z, _range[0], _range[1], _range[2]);
+    }
 #endif
     return _acc[x + _range[1] * (y + _range[2] * z)];
   }
@@ -375,10 +383,10 @@ class buffer_3d_acc_t {
 
 template <data_dim D, access::mode write_mode, class T>
 struct copy_vec_to_mat_impl {
-  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                  const nd_range<1>& nd_rng, SYCLIndexT row) {
+  event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                   const nd_range<1>& nd_rng, SYCLIndexT row) {
     auto rng = nd_rng.get_global_range();
-    q.submit([&](handler& cgh) {
+    return q.submit([&matrix, &vec, rng, row](handler& cgh) {
       auto matrix_acc = matrix.template get_access<write_mode>(
           cgh, rng, id<1>(row * matrix.get_kernel_range()[1]));
       auto vec_acc =
@@ -392,9 +400,9 @@ class ml_copy_vec_to_mat;
 
 template <access::mode write_mode, class T>
 struct copy_vec_to_mat_impl<COL, write_mode, T> {
-  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                  const nd_range<1>& nd_rng, SYCLIndexT col) {
-    q.submit([&](handler& cgh) {
+  event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                   const nd_range<1>& nd_rng, SYCLIndexT col) {
+    return q.submit([&matrix, &vec, col, nd_rng](handler& cgh) {
       auto matrix_acc = matrix.template get_access_2d<access::mode::write>(cgh);
       auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
       using ker_name =
@@ -409,10 +417,10 @@ struct copy_vec_to_mat_impl<COL, write_mode, T> {
 
 template <data_dim D, access::mode write_mode, class T>
 struct copy_mat_to_vec_impl {
-  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                  const nd_range<1>& nd_rng, SYCLIndexT row) {
+  event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                   const nd_range<1>& nd_rng, SYCLIndexT row) {
     auto rng = nd_rng.get_global_range();
-    q.submit([&](handler& cgh) {
+    return q.submit([&matrix, &vec, rng, row](handler& cgh) {
       auto matrix_acc = matrix.template get_access<access::mode::read>(
           cgh, rng, id<1>(row * matrix.get_kernel_range()[1]));
       auto vec_acc = vec.template get_access<write_mode>(cgh, rng, id<1>(0));
@@ -425,9 +433,9 @@ class ml_copy_mat_to_vec;
 
 template <access::mode write_mode, class T>
 struct copy_mat_to_vec_impl<COL, write_mode, T> {
-  void operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                  const nd_range<1>& nd_rng, SYCLIndexT col) {
-    q.submit([&](handler& cgh) {
+  event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                   const nd_range<1>& nd_rng, SYCLIndexT col) {
+    return q.submit([&matrix, &vec, nd_rng, col](handler& cgh) {
       auto matrix_acc = matrix.template get_access_2d<access::mode::read>(cgh);
       auto vec_acc = vec.template get_access_1d<write_mode>(cgh);
       using ker_name =
@@ -454,19 +462,20 @@ struct copy_mat_to_vec_impl<COL, write_mode, T> {
  * @param vec source buffer
  * @param nd_rng range to copy
  * @param row_col which row (resp. col) to copy
+ * @return A SYCL event corresponding to the submitted operation
  */
 template <data_dim D = ROW, access::mode write_mode = access::mode::write,
           class T>
-void copy_vec_to_mat(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                     const nd_range<1>& nd_rng, SYCLIndexT row_col) {
+event copy_vec_to_mat(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                      const nd_range<1>& nd_rng, SYCLIndexT row_col) {
   static_assert(write_mode == access::mode::write ||
                     write_mode == access::mode::discard_write,
                 "Access mode must be either write or discard_write");
   assert_less_or_eq(row_col, access_ker_dim<D>(matrix, 0));
   assert_less_or_eq(nd_rng.get_global_range()[0], access_ker_dim<D>(matrix, 1));
   assert_less_or_eq(nd_rng.get_global_range()[0], vec.get_kernel_range()[0]);
-  detail::copy_vec_to_mat_impl<D, write_mode, T>()(q, matrix, vec, nd_rng,
-                                                   row_col);
+  return detail::copy_vec_to_mat_impl<D, write_mode, T>()(q, matrix, vec,
+                                                          nd_rng, row_col);
 }
 
 class ml_copy_mat_to_vec;
@@ -482,19 +491,20 @@ class ml_copy_mat_to_vec;
  * @param matrix destination buffer
  * @param vec source buffer
  * @param row_col which row (resp. col) to copy
+ * @return A SYCL event corresponding to the last submitted operation
  */
 template <data_dim D = ROW, access::mode write_mode = access::mode::write,
           class T>
-void copy_mat_to_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
-                     const nd_range<1>& nd_rng, SYCLIndexT row_col) {
+event copy_mat_to_vec(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
+                      const nd_range<1>& nd_rng, SYCLIndexT row_col) {
   static_assert(write_mode == access::mode::write ||
                     write_mode == access::mode::discard_write,
                 "Access mode must be either write or discard_write");
   assert_less_or_eq(row_col, access_ker_dim<D>(matrix, 0));
   assert_less_or_eq(nd_rng.get_global_range()[0], access_ker_dim<D>(matrix, 1));
   assert_less_or_eq(nd_rng.get_global_range()[0], vec.get_kernel_range()[0]);
-  detail::copy_mat_to_vec_impl<D, write_mode, T>()(q, matrix, vec, nd_rng,
-                                                   row_col);
+  return detail::copy_mat_to_vec_impl<D, write_mode, T>()(q, matrix, vec,
+                                                          nd_rng, row_col);
 }
 
 class ml_split_by_index;
@@ -517,7 +527,7 @@ matrix_t<DataT> split_by_index(queue& q, matrix_t<DataT>& buffer,
       get_optimal_nd_range(indices.get_kernel_range()[0],
                            access_ker_dim(buffer, 1)));
 
-  q.submit([&](handler& cgh) {
+  q.submit([&indices, &buffer, &split_buffer](handler& cgh) {
     auto indices_acc = indices.template get_access_1d<access::mode::read>(cgh);
     auto buffer_acc = buffer.template get_access_2d<access::mode::read>(cgh);
     auto split_buffer_acc =
@@ -548,7 +558,7 @@ vector_t<DataT> split_by_index(queue& q, vector_t<DataT>& buffer,
                                vector_t<IndexT>& indices) {
   vector_t<DataT> split_buffer(indices.data_range, indices.kernel_range);
 
-  q.submit([&](handler& cgh) {
+  q.submit([&buffer, &indices, &split_buffer](handler& cgh) {
     auto indices_acc = indices.template get_access_1d<access::mode::read>(cgh);
     auto buffer_acc = buffer.template get_access_1d<access::mode::read>(cgh);
     auto split_buffer_acc =

@@ -22,8 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-
-#include "ml/utils/memory_helper.hpp"
+#include <vector>
 
 /*
  * Load the MNIST data set: http://yann.lecun.com/exdb/mnist/
@@ -80,20 +79,22 @@ static std::ifstream open_mnist_file(const std::string& full_path) {
 // Read mnist, cast uchar to type T and transpose it (so that an image is a
 // column)
 template <class T>
-std::shared_ptr<T> read_mnist_images(const std::string& full_path,
-                                     unsigned& image_size,
-                                     unsigned& padded_image_size,
-                                     unsigned& nb_images, bool transpose,
-                                     bool round_pow2, T norm_factor = 1) {
+std::vector<T> read_mnist_images(const std::string& full_path,
+                                 unsigned& image_size,
+                                 unsigned& padded_image_size,
+                                 unsigned& nb_images, bool transpose,
+                                 bool round_pow2, T norm_factor = 1) {
   std::ifstream file = open_mnist_file(full_path);
-  if (!file.is_open())
-    return nullptr;
+  if (!file.is_open()) {
+    std::cerr << "Could not open file: " << full_path << std::endl;
+    return {};
+  }
 
   uint32_t magic_number = 0;
   read_int(file, magic_number);
   if (magic_number != 2051) {
     std::cerr << "Invalid MNIST file: " << full_path << std::endl;
-    return nullptr;
+    return {};
   }
 
   uint32_t read_nb_images = 0, read_nb_rows = 0, read_nb_cols = 0;
@@ -111,63 +112,69 @@ std::shared_ptr<T> read_mnist_images(const std::string& full_path,
   nb_images = read_nb_images;
   image_size = read_nb_rows * read_nb_cols;
   unsigned buffer_total_size = nb_images * image_size;
-  unsigned char* buffer = new unsigned char[buffer_total_size];
+  std::vector<unsigned char> buffer(buffer_total_size);
 
   padded_image_size = out_read_nb_rows * out_read_nb_cols;
   unsigned dataset_total_size = nb_images * padded_image_size;
-  T* dataset = new T[dataset_total_size];
+  std::vector<T> dataset(dataset_total_size);
 
-  file.read(reinterpret_cast<char*>(buffer), buffer_total_size);
+  file.read(reinterpret_cast<char*>(buffer.data()), buffer_total_size);
 
   if (transpose) {
-    for (unsigned c = 0; c < nb_images; ++c)
-      for (unsigned r = 0; r < image_size; ++r)
+    for (unsigned c = 0; c < nb_images; ++c) {
+      for (unsigned r = 0; r < image_size; ++r) {
+        // Cast, normalize and transpose
         dataset[r * nb_images + c] =
-            static_cast<T>(buffer[c * image_size + r]) /
-            norm_factor;  // cast and transpose
-    if (round_pow2)       // Set all zeros in the end
+            static_cast<T>(buffer[c * image_size + r]) / norm_factor;
+      }
+    }
+    if (round_pow2) {  // Set all zeros in the end
       std::memset(&dataset[image_size * nb_images], 0,
                   (padded_image_size - image_size) * nb_images * sizeof(T));
+    }
   } else {
     for (unsigned r = 0; r < nb_images; ++r) {
-      for (unsigned c = 0; c < image_size; ++c)
+      for (unsigned c = 0; c < image_size; ++c) {
+        // Cast and normalize
         dataset[r * padded_image_size + c] =
-            static_cast<T>(buffer[r * image_size + c]) / norm_factor;  // cast
+            static_cast<T>(buffer[r * image_size + c]) / norm_factor;
+      }
       std::memset(&dataset[r * padded_image_size + image_size], 0,
                   (padded_image_size - image_size) * sizeof(T));
     }
   }
 
-  delete[] buffer;
-  return ml::make_shared_array(dataset);
+  return dataset;
 }
 
 template <class T>
-std::shared_ptr<T> read_mnist_labels(const std::string& full_path,
-                                     unsigned& nb_labels) {
+std::vector<T> read_mnist_labels(const std::string& full_path,
+                                 unsigned& nb_labels) {
   std::ifstream file = open_mnist_file(full_path);
-  if (!file.is_open())
-    return nullptr;
+  if (!file.is_open()) {
+    std::cerr << "Could not open file: " << full_path << std::endl;
+    return {};
+  }
 
   uint32_t magic_number = 0;
   read_int(file, magic_number);
   if (magic_number != 2049) {
     std::cerr << "Invalid MNIST file: " << full_path << std::endl;
-    return nullptr;
+    return {};
   }
 
   uint32_t read_nb_labels = 0;
   read_int(file, read_nb_labels);
   nb_labels = read_nb_labels;
 
-  unsigned char* buffer = new unsigned char[nb_labels];
-  T* labels = new T[nb_labels];
+  std::vector<unsigned char> buffer(nb_labels);
+  std::vector<T> labels(nb_labels);
 
-  file.read(reinterpret_cast<char*>(buffer), nb_labels);
-  std::transform(buffer, buffer + nb_labels, labels, static_cast_func<T>());
+  file.read(reinterpret_cast<char*>(buffer.data()), nb_labels);
+  std::transform(buffer.begin(), buffer.end(), labels.begin(),
+                 static_cast_func<T>());
 
-  delete[] buffer;
-  return ml::make_shared_array(labels);
+  return labels;
 }
 
 inline std::string mnist_get_train_images_path(const std::string& prefix) {

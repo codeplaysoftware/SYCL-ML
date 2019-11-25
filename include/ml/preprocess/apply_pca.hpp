@@ -51,8 +51,9 @@ class apply_pca {
   matrix_t<T> compute_and_apply(queue& q, matrix_t<T>& data,
                                 const pca_args<T>& pca_args) {
     _enable_pca = pca_args.keep_percent > 0;
-    if (!_enable_pca)
+    if (!_enable_pca) {
       return data;
+    }
 
     auto data_dim = access_data_dim(data, 1);
     auto data_dim_pow2 = access_ker_dim(data, 1);
@@ -76,10 +77,11 @@ class apply_pca {
       std::cout << "Computing PCA..." << std::endl;
       _eigenvectors = pca_svd(q, data, _data_avg, pca_args);
       _nb_vec_computed = access_data_dim(_eigenvectors, 0);
-      if (pca_args.save)
+      if (pca_args.save) {
         save_array(q, _eigenvectors,
                    get_filename(data_dim_pow2, _nb_vec_computed,
                                 pca_args.scale_factor));
+      }
     }
 
     matrix_t<T> new_data =
@@ -97,8 +99,9 @@ class apply_pca {
    * @return the new data
    */
   matrix_t<T> apply(queue& q, matrix_t<T>& data) {
-    if (!_enable_pca)
+    if (!_enable_pca) {
       return data;
+    }
 
     assert(_nb_vec_computed != 0);
     matrix_t<T> new_data(range<2>(access_data_dim(data, 0), _nb_vec_computed));
@@ -123,8 +126,8 @@ class apply_pca {
   inline std::string get_filename(SYCLIndexT data_dim_pow2, SYCLIndexT nb_vec,
                                   T svd_factor) {
     std::stringstream ss;
-    ss << "eig_svd_" << nb_vec << "_" << data_dim_pow2 << "_" << svd_factor
-       << "_" << typeid(T).name();
+    ss << "pca_" << nb_vec << "_" << data_dim_pow2 << "_" << svd_factor << "_"
+       << typeid(T).name();
     return ss.str();
   }
 

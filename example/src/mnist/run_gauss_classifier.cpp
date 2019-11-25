@@ -19,8 +19,9 @@
 
 int main(int argc, char** argv) {
   std::string mnist_path = "data/mnist";
-  if (argc >= 2)
+  if (argc >= 2) {
     mnist_path = argv[1];
+  }
 
   // Runs the gaussian classifier on MNIST with a PCA
   using data_t = float;

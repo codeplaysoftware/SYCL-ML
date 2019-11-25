@@ -129,7 +129,7 @@ void test_optimized_qr() {
     ml::qr(q, sycl_data);
     ml::matrix_t<T> sycl_r(cl::sycl::range<2>(DATA_DIM, DATA_DIM));
     T factor = 1 / std::sqrt(NB_OBS);
-    q.submit([&](cl::sycl::handler& cgh) {
+    q.submit([&sycl_data, &sycl_r, factor](cl::sycl::handler& cgh) {
       auto old_r_acc =
           sycl_data.template get_access_2d<cl::sycl::access::mode::read>(cgh);
       auto new_r_acc =

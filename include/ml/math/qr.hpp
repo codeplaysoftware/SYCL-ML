@@ -115,14 +115,16 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
     nb_rows_ker = m - j;
     if (nb_rows_ker % 2 == 0) {
       bool nb_rows_ker_is_pow2 = is_pow2(nb_rows_ker);
-      if (nb_rows_ker_is_pow2 || !is_pow2(w_rng.get_global_range()[0]))
+      if (nb_rows_ker_is_pow2 || !is_pow2(w_rng.get_global_range()[0])) {
         w_rng = get_optimal_nd_range(nb_rows_ker);
-      if (nb_rows_ker_is_pow2 || !is_pow2(mat_rng.get_global_range()[0]))
+      }
+      if (nb_rows_ker_is_pow2 || !is_pow2(mat_rng.get_global_range()[0])) {
         mat_rng = get_optimal_nd_range(nb_rows_ker, access_ker_dim(mat, 1));
+      }
     }
 
     // Compute w and update R
-    q.submit([&](handler& cgh) {
+    q.submit([&mat, &w, w_rng, nb_rows_ker, act_u1, j](handler& cgh) {
       auto mat_acc = mat.template get_access_2d<access::mode::read_write>(cgh);
       auto w_acc = w.template get_access_1d<access::mode::discard_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_qr, T>>(w_rng, [=](nd_item<1> item) {
@@ -152,16 +154,17 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
         sliced_mat.contract(sliced_w, get_contract_dim<ROW, ROW>());
 
     // Update R
-    q.submit([&](handler& cgh) {
+    q.submit([&vec_buf, &w, &mat, mat_rng, act_tau, j, m, n](handler& cgh) {
       auto vec_acc = vec_buf.template get_access_1d<access::mode::read>(cgh);
       auto w_acc = w.template get_access_1d<access::mode::read>(cgh);
       auto mat_acc = mat.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<1, ml_qr, T>>(mat_rng, [=](nd_item<2> item) {
         auto row = item.get_global_id(0);
         auto col = item.get_global_id(1);
-        if (row < m - j && col < n - j - 1)
+        if (row < m - j && col < n - j - 1) {
           mat_acc(j + row, j + 1 + col) -=
               (act_tau * w_acc(row)) * vec_acc(col);
+        }
       });
     });
   }

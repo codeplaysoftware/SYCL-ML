@@ -48,18 +48,18 @@ class data_splitter : public virtual classifier<DataT, LabelT> {
    * @param nb_labels number of different labels
    */
   virtual void train(queue& q, matrix_t<DataT>& dataset,
-                     vector_t<LabelT>& labels,
+                     std::vector<LabelT>& host_labels,
                      unsigned nb_labels = 0) override {
-    if (!this->check_nb_labels(nb_labels))
+    if (!this->check_nb_labels(nb_labels)) {
       return;
+    }
 
     auto nb_obs = access_data_dim(dataset, 0);
-    assert_eq(nb_obs, labels.get_count());
+    assert_eq(nb_obs, host_labels.size());
 
     _data_dim = access_data_dim(dataset, 1);
     _data_dim_pow2 = access_ker_dim(dataset, 1);
 
-    auto host_labels = labels.template get_access<access::mode::read>();
     this->process_labels(host_labels, nb_labels);
 
     // Compute indices for each labels

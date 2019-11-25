@@ -55,8 +55,9 @@ std::ostream& operator<<(std::ostream& os, const std::pair<T1, T2>& p) {
 template <int DIM>
 std::ostream& operator<<(std::ostream& os, const cl::sycl::id<DIM>& id_) {
   os << "[" << id_[0];
-  for (int i = 1; i < DIM; ++i)
+  for (int i = 1; i < DIM; ++i) {
     os << ", " << id_[i];
+  }
   os << "]";
   return os;
 }
@@ -72,8 +73,9 @@ std::ostream& operator<<(std::ostream& os, const cl::sycl::id<DIM>& id_) {
 template <int DIM>
 std::ostream& operator<<(std::ostream& os, const cl::sycl::range<DIM>& r) {
   os << "[" << r[0];
-  for (int i = 1; i < DIM; ++i)
+  for (int i = 1; i < DIM; ++i) {
     os << ", " << r[i];
+  }
   os << "]";
   return os;
 }

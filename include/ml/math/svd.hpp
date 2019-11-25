@@ -45,9 +45,9 @@ void stabilize_vec(queue& q, vector_t<T>& prev_vec, vector_t<T>& act_vec,
 
 class ml_svd_deflate;
 template <class T>
-void deflate(queue& q, matrix_t<T>& data, vector_t<T>& act_U_col,
-             vector_t<T>& act_V_row, T act_eig_val) {
-  q.submit([&](handler& cgh) {
+event deflate(queue& q, matrix_t<T>& data, vector_t<T>& act_U_col,
+              vector_t<T>& act_V_row, T act_eig_val) {
+  return q.submit([&data, &act_U_col, &act_V_row, act_eig_val](handler& cgh) {
     auto v_acc = act_U_col.template get_access_1d<access::mode::read>(cgh);
     auto u_acc = act_V_row.template get_access_1d<access::mode::read>(cgh);
     auto data_acc = data.template get_access_2d<access::mode::read_write>(cgh);
@@ -79,13 +79,13 @@ inline void write_vec<true>::apply(queue& q, matrix_t<T>& matrix,
 template <bool Enable>
 struct write_l {
   template <class T>
-  static inline void apply(vector_t<T>&, T, SYCLIndexT) {}
+  static inline void apply(std::vector<T>&, T, SYCLIndexT) {}
 };
 
 template <>
 template <class T>
-inline void write_l<true>::apply(vector_t<T>& L, T host_l, SYCLIndexT k) {
-  L.write_from_host(k, host_l);
+inline void write_l<true>::apply(std::vector<T>& L, T host_l, SYCLIndexT k) {
+  L[k] = host_l;
 }
 
 }  // namespace detail
@@ -99,7 +99,7 @@ inline void write_l<true>::apply(vector_t<T>& L, T host_l, SYCLIndexT k) {
 template <class T>
 struct svd_out {
   matrix_t<T> U;
-  vector_t<T> L;
+  std::vector<T> L;
   matrix_t<T> V;
   T eig_vals_sum;
 };
@@ -118,7 +118,7 @@ struct svd_out {
  * avoid division by zero.
  *
  * @tparam WriteU whether to write U in the output
- * @tparam write_l whether to write L in the output
+ * @tparam WriteL whether to write L in the output
  * @tparam WriteV whether to write V in the output
  * @tparam T
  * @param q
@@ -130,7 +130,7 @@ struct svd_out {
  * with the last eigenvalue increases.
  * @return a structure with all the required buffers filled
  */
-template <bool WriteU, bool write_l, bool WriteV, class T>
+template <bool WriteU, bool WriteL, bool WriteV, class T>
 svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
                T epsilon = 1E-4, SYCLIndexT max_nb_iter = 100) {
   auto nb_obs = data.data_range[0];
@@ -138,15 +138,16 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
   auto nb_obs_pow2 = to_pow2(nb_obs);
   auto data_dim_pow2 = to_pow2(data_dim);
 
-  if (nb_vec == 0)
+  if (nb_vec == 0) {
     nb_vec = data_dim;
+  }
 
   nd_range<1> nd_data_dim_pow2_range = get_optimal_nd_range(data_dim_pow2);
   nd_range<1> nd_nb_obs_range = get_optimal_nd_range(nb_obs);
   nd_range<1> nd_nb_obs_pow2_range = get_optimal_nd_range(nb_obs_pow2);
+  nd_range<1> nd_nb_vec_range = get_optimal_nd_range(nb_vec);
 
-  svd_out<T> out{matrix_t<T>(range<2>(nb_obs, nb_vec)),
-                 vector_t<T>(range<1>(nb_vec)),
+  svd_out<T> out{matrix_t<T>(range<2>(nb_obs, nb_vec)), std::vector<T>(),
                  matrix_t<T>(range<2>(nb_vec, data_dim),
                              get_optimal_nd_range(nb_vec, data_dim_pow2)),
                  0.0f};
@@ -161,10 +162,13 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
   vector_t<T> act_V_row(range<1>(data_dim), nd_data_dim_pow2_range);
 
   sycl_memset(q, U);
-  sycl_memset(q, L);
   sycl_memset(q, V);
   sycl_memset(q, act_U_col);
   sycl_memset(q, act_V_row);
+
+  if (WriteL) {
+    L.resize(nb_vec);
+  }
 
   T norm_v;
   T prev_l;
@@ -184,8 +188,9 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
     while (true) {
       mat_mul<TR>(q, data, act_U_col, act_V_row);
 
-      if (k > 0)
+      if (k > 0) {
         detail::stabilize_vec(q, prev_V_row, act_V_row, epsilon);
+      }
       norm_v = sycl_norm(q, act_V_row);
 
       if (norm_v < epsilon) {
@@ -196,8 +201,9 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
         sycl_normalize(q, act_V_row, norm_v);
         mat_mul(q, data, act_V_row, act_U_col);
 
-        if (k > 0)
+        if (k > 0) {
           detail::stabilize_vec(q, prev_U_col, act_U_col, epsilon);
+        }
 
         act_l = sycl_norm(q, act_U_col);
         assert_real(act_l);
@@ -214,11 +220,12 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
       std::cout << std::endl;
       */
 
-      detail::write_l<write_l>::apply(L, act_l, k);
-      if (act_l < epsilon)
+      detail::write_l<WriteL>::apply(L, act_l, k);
+      if (act_l < epsilon) {
         sycl_memset(q, act_U_col);
-      else
+      } else {
         sycl_normalize(q, act_U_col, act_l);
+      }
 
       if (act_diff < epsilon ||
           (act_nb_iter > max_nb_iter && act_diff > prev_diff))
@@ -230,12 +237,16 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
     }
 
     // Verbose log
-    /*std::cout << "#" << k;
-    std::cout << "\t act_nb_iter=" << act_nb_iter;
-    //if (nb_obs_pow2 == data_dim_pow2) // If the input is symmetric
-    //  std::cout << "\t u_v_dist=" << sycl_dist_no_direction(q, act_U_col,
-    act_V_row); // u_v_dist should be close to 0 std::cout << "\t eigenvalue="
-    << act_l << " / " << eig_vals_sum; std::cout << std::endl;*/
+    /*
+    std::cout << "#" << k << "\t act_nb_iter=" << act_nb_iter;
+    if (nb_obs_pow2 == data_dim_pow2) { // If the input is symmetric
+      // u_v_dist should be close to 0
+      std::cout << "\t u_v_dist=" << sycl_dist_no_direction(q,
+    act_U_col,act_V_row);
+    }
+    std::cout << "\t eigenvalue=" << act_l << " / " << eig_vals_sum
+              << std::endl;
+    */
 
     if (act_l >= epsilon) {
       eig_vals_sum += act_l;
@@ -253,7 +264,7 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
     // L has as many rows as V does but is a vector so use its
     // optimal_kernel_range(nb_vec) instead of recomputing it.
     detail::write_vec<WriteV>::template apply<ROW>(q, V, act_V_row,
-                                                   L.get_nd_range(), k);
+                                                   nd_nb_vec_range, k);
   }
 
   return out;

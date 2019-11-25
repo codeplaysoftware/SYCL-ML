@@ -31,8 +31,9 @@ if(Eigen_FOUND AND NOT TARGET Eigen)
   )
 endif()
 if(Eigen_FOUND)
-  set(eigen_definitions EIGEN_EXCEPTIONS
-                        EIGEN_USE_SYCL)
+  set(eigen_definitions EIGEN_EXCEPTIONS=1
+                        EIGEN_USE_SYCL=1
+                        EIGEN_SYCL_USE_DEFAULT_SELECTOR=1)
   find_package(Threads)
   if(Threads_FOUND)
     list(APPEND eigen_definitions EIGEN_SYCL_ASYNC_EXECUTION=1)

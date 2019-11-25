@@ -75,22 +75,24 @@ class log_gaussian_distribution {
     matrix_t<T> plx_data(
         use_plx ? act_data.data_range : range<2>(),
         use_plx ? act_data.kernel_range : nd_range<2>(range<2>(), range<2>()));
-    if (use_plx)
+    if (use_plx) {
       get_plx_data(q, act_data, plx_k, plx_data, functors::identity<T>());
+    }
     matrix_t<T>& data = use_plx ? plx_data : act_data;
     avg(q, data, data_avg);
 
     matrix_t<T> center_data(act_data.data_range, act_data.kernel_range);
     mat_vec_apply_op<COL>(q, act_data, center_data, data_avg, std::minus<T>());
 
-    if (use_plx)
+    if (use_plx) {
       get_plx_data(q, center_data, plx_k, plx_data, functors::sqrt<T>());
+    }
     data = use_plx ? plx_data : center_data;
 
     qr(q, data, data_avg.data_range, data_avg.kernel_range);
 
     T factor = 1 / std::sqrt(weight);
-    q.submit([&](handler& cgh) {
+    q.submit([&data, &act_r, factor](handler& cgh) {
       auto old_r_acc = data.template get_access_2d<access::mode::read>(cgh);
       auto new_r_acc =
           act_r.template get_access_2d<access::mode::discard_write>(cgh);
@@ -103,6 +105,8 @@ class log_gaussian_distribution {
           });
     });
 
+    // get_log_cov_det will block until the result is computed and copied to
+    // the host
     log_cov_det = get_log_cov_det(q, act_r);
   }
 
@@ -173,6 +177,8 @@ class log_gaussian_distribution {
 
     randomize_r(q, act_r);
 
+    // get_log_cov_det will block until the result is computed and copied to
+    // the host
     log_cov_det = get_log_cov_det(q, act_r);
   }
 
@@ -186,11 +192,12 @@ class log_gaussian_distribution {
    * @param[in] plx_k
    * @param[out] plx_data
    * @param op
+   * @return A SYCL event corresponding to the submitted operation
    */
   template <class Op>
-  void get_plx_data(queue& q, matrix_t<T>& data, vector_t<T>& plx_k,
-                    matrix_t<T>& plx_data, Op op) {
-    q.submit([&](handler& cgh) {
+  event get_plx_data(queue& q, matrix_t<T>& data, vector_t<T>& plx_k,
+                     matrix_t<T>& plx_data, Op op) {
+    return q.submit([&data, &plx_k, &plx_data, op](handler& cgh) {
       auto data_acc = data.template get_access_2d<access::mode::read>(cgh);
       auto plx_acc = plx_k.template get_access_1d<access::mode::read>(cgh);
       auto plx_data_acc =
@@ -228,15 +235,16 @@ class log_gaussian_distribution {
    *
    * @param q
    * @param[out] act_r
+   * @return A SYCL event corresponding to the submitted operation
    */
-  void randomize_r(queue& q, matrix_t<T>& act_r) {
+  event randomize_r(queue& q, matrix_t<T>& act_r) {
     using UniformRandom = Eigen::internal::UniformRandomGenerator<T>;
     {
       auto eig_r = sycl_to_eigen(act_r);
       eig_r.device() = eig_r.tensor().template random<UniformRandom>();
     }
 
-    q.submit([&](handler& cgh) {
+    return q.submit([&act_r](handler& cgh) {
       auto act_r_acc =
           act_r.template get_access_2d<access::mode::read_write>(cgh);
       cgh.parallel_for<NameGen<0, ml_gd_normalize_random_r, T>>(
@@ -244,14 +252,15 @@ class log_gaussian_distribution {
             auto row = item.get_global_id(0);
             auto col = item.get_global_id(1);
             auto& act_rc = act_r_acc(row, col);
-            if (row > col)
+            if (row > col) {
               act_rc = 0;
-            else if (row < col)
+            } else if (row < col) {
               act_rc = (act_rc * 3 - 1.5) /
                        (cl::sycl::sqrt(static_cast<T>(row * col)) + 1);
-            else
+            } else {
               act_rc = (((act_rc - 0.5) >= 0) * 2 - 1) *
                        (act_rc + 0.5 + T(1) / (row + 1));
+            }
           });
     });
   }

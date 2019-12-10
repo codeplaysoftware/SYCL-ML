@@ -52,8 +52,8 @@ inline void write_pixel(std::ofstream& ofs,
  * @param img_nb_cols output image height
  * @param normalize move the data range in [0, 255]
  * @param abs apply abs before reading any element in data
- * @param min avoid to compute the couple min max if provided
- * @param max avoid to compute the couple min max if provided
+ * @param min avoid computing the couple min max if provided
+ * @param max avoid computing the couple min max if provided
  * @param from_r offset to start reading the row from
  * @param from_c offset to start reading the col from
  * @param to_r last row to read (excluded)

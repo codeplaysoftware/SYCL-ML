@@ -182,7 +182,7 @@ class log_model_per_label {
                                   _range_noise);
     }
 
-    DataType diff_llk = _diff_llk_eps + 1;
+    DataType diff_llk;
     unsigned act_iter = 0;
     while (act_iter < _max_nb_iter) {
       step_e(q, data, plx, plx_max, new_llk);
@@ -276,8 +276,6 @@ class log_model_per_label {
       auto plx_k = plx.get_row(k);
       _distributions[k].compute_dist(q, data, plx_k);
     }
-    // TODO: Remove wait later
-    q.wait_and_throw();  // Wait for plx_k sub-buffers to write back in plx
 
     detail::add_weights(q, plx, _weights);
 
@@ -337,7 +335,7 @@ class log_model_per_label {
     for (unsigned k = 0; k < M; ++k) {
       act_w = _host_weights[k];
       if (act_w < _weight_eps) {
-        // Re-randomize the kth distribution (should not happen often)
+        // Re-randomize the k-th distribution (should not happen often)
         std::cout << "Warning: EM(" << _idx << ") weight(" << k
                   << ") is too small: " << act_w << "\n"
                   << "This may indicate that too many distributions (M) are "

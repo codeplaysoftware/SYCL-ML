@@ -52,9 +52,10 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
   assert_less_or_eq(m, w.data_range[0]);
   assert_less_or_eq(n, vec_buf.data_range[0]);
 
+  static constexpr T ACT_SIGN = 1;
   SYCLIndexT jj_offset;
+  T host_mat_jj;
   T act_norm;
-  T act_sign;
   T act_u1;
   T act_tau;
 
@@ -86,17 +87,14 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
                             .sqrt();
     act_norm = norm_buf.read_to_host(0);
 
-    T host_mat_jj = mat.read_to_host(jj_offset);
+    host_mat_jj = mat.read_to_host(jj_offset);
     // At each iteration the sign can be chosen to be different.
     // Choosing it to be -sign(mat(j,j)) maximizes the value of u1 but is more
     // likely to cause division by zero
-    act_sign = 1;  //-cl::sycl::sign(host_mat_jj);
-    act_u1 = host_mat_jj - act_sign * act_norm;
-    act_tau = -act_sign * act_u1 / act_norm;
-  };
-
-  auto write_mat_jj = [&]() {
-    mat.write_from_host(jj_offset, act_sign * act_norm);
+    // act_sign = -cl::sycl::sign(host_mat_jj);
+    act_u1 = host_mat_jj - ACT_SIGN * act_norm;
+    act_tau = -ACT_SIGN * act_u1 / act_norm;
+    mat.write_from_host(jj_offset, ACT_SIGN * act_norm);
   };
 
   auto w_rng = w.kernel_range;
@@ -105,7 +103,6 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
   IndexT j = 0;
   for (; j < n - 1; ++j) {
     compute_acts(j);
-    write_mat_jj();
 
     if (std::abs(act_u1) < eps) {
       // Note: matrix Q would be wrong if this is reached
@@ -170,7 +167,6 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
   }
 
   compute_acts(j);
-  write_mat_jj();
 }
 
 /**

@@ -145,7 +145,7 @@ template <data_dim D = ROW, class T, class BinaryOp>
 event mat_vec_apply_op(queue& q, matrix_t<T>& in, matrix_t<T>& out,
                        vector_t<T>& vec, BinaryOp op = BinaryOp()) {
   assert_rng_less_or_eq(out.get_kernel_range(), in.get_kernel_range());
-  assert_less_or_eq(access_ker_dim<D>(out, 0), vec.get_count());
+  assert_less_or_eq(access_ker_dim<D>(out, 0), vec.get_kernel_size());
 
   return q.submit([&in, &out, &vec, op](handler& cgh) {
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
@@ -180,7 +180,7 @@ class ml_mat_vec_inplace_binary_op;
 template <data_dim D = ROW, class T, class BinaryOp>
 event mat_vec_apply_op(queue& q, matrix_t<T>& in_out, vector_t<T>& vec,
                        BinaryOp op = BinaryOp()) {
-  assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_count());
+  assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_kernel_size());
 
   return q.submit([&vec, &in_out, op](handler& cgh) {
     auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
@@ -216,7 +216,7 @@ class ml_mat_vec_binary_op_data_rng;
 template <data_dim D = ROW, class T, class BinaryOp>
 event mat_vec_apply_op_data_rng(queue& q, matrix_t<T>& in_out, vector_t<T>& vec,
                                 BinaryOp op = BinaryOp()) {
-  assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_count());
+  assert_less_or_eq(access_ker_dim<D>(in_out, 0), vec.get_kernel_size());
 
   auto data_dim_0 = access_data_dim(in_out, 0);
   auto data_dim_1 = access_data_dim(in_out, 1);

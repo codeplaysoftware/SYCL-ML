@@ -136,7 +136,7 @@ void run_classifier(
       TIME(predict_classifier);
       auto sycl_predicted_test_labels = classifier.predict(q, sycl_test_data);
       // Can be rounded up to a power of 2
-      auto nb_labels_predicted = sycl_predicted_test_labels.get_count();
+      auto nb_labels_predicted = sycl_predicted_test_labels.get_kernel_size();
       host_predicted_test_labels.resize(nb_labels_predicted);
       sycl_predicted_test_labels.set_final_data(
           host_predicted_test_labels.data());

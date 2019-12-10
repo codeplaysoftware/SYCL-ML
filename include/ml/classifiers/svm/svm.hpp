@@ -181,19 +181,18 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
     auto indices_per_label =
         this->get_labels_indices(host_labels, nb_labels, nb_obs);
 
+    std::vector<unsigned> nb_obs_per_label;
+    for (auto& vec : indices_per_label) {
+      nb_obs_per_label.push_back(vec.size());
+    }
+    // max_act_data_nb_obs is the sum of the 2 largest number of observations of
+    // 2 distinct labels
     unsigned max_act_data_nb_obs;
-    std::vector<nd_range<1>> data_nd_ranges_per_label;
     {
-      std::vector<unsigned> nb_obs_per_label;
-      for (auto& vec : indices_per_label) {
-        auto nb_obs_i = vec.size();
-        nb_obs_per_label.push_back(nb_obs_i);
-        data_nd_ranges_per_label.push_back(
-            get_optimal_nd_range(nb_obs_i * _data_dim_pow2));
-      }
-      std::sort(nb_obs_per_label.begin(), nb_obs_per_label.end());
-      max_act_data_nb_obs = nb_obs_per_label.back() +
-                            nb_obs_per_label[nb_obs_per_label.size() - 2];
+      std::vector<unsigned> sorted_nb_obs_per_label = nb_obs_per_label;
+      std::sort(sorted_nb_obs_per_label.begin(), sorted_nb_obs_per_label.end());
+      max_act_data_nb_obs = sorted_nb_obs_per_label.back() +
+                            sorted_nb_obs_per_label[nb_labels - 2];
     }
 
     // Pad data_dim dataset
@@ -219,26 +218,17 @@ class svm : public classifier<typename KernelType::DataType, LabelType> {
 
     for (unsigned i = 0; i < nb_labels - 1; ++i) {
       unsigned act_nb_obs_i = indices_per_label[i].size();
-      const auto& data_nd_ranges_i = data_nd_ranges_per_label[i];
 
       // Copy data labeled i
-      {
-        auto act_data_sub_i =
-            act_data.get_sub_buffer(id<1>(0), data_nd_ranges_i);
-        sycl_copy(q, data_per_label[i], act_data_sub_i);
-      }
-      id<1> data_offset_i(data_nd_ranges_i.get_global_linear_range());
+      id<1> data_offset_i(nb_obs_per_label[i] * _data_dim_pow2);
+      sycl_copy(q, data_per_label[i], act_data, 0, 0, data_offset_i.get(0));
 
       for (unsigned j = i + 1; j < nb_labels; ++j) {
         unsigned act_nb_obs_j = indices_per_label[j].size();
-        const auto& data_nd_ranges_j = data_nd_ranges_per_label[j];
 
         // Copy data labeled j
-        {
-          auto act_data_sub_j =
-              act_data.get_sub_buffer(data_offset_i, data_nd_ranges_j);
-          sycl_copy(q, data_per_label[j], act_data_sub_j);
-        }
+        sycl_copy(q, data_per_label[j], act_data, 0, data_offset_i.get(0),
+                  nb_obs_per_label[j] * _data_dim_pow2);
 
         create_internal_labels(q, act_nb_obs_i, act_nb_obs_j,
                                act_internal_labels);

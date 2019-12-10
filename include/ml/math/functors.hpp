@@ -65,26 +65,24 @@ struct sum_log_abs {
 template <class T>
 struct exp_diff {
   template <class T1, class T2>
-  constexpr T operator()(T1&& x1, T2&& x2) const {
-    return cl::sycl::exp(std::forward<T1>(x1) - std::forward<T2>(x2));
+  constexpr T operator()(T1 x1, T2 x2) const {
+    return cl::sycl::exp(x1 - x2);
   }
 };
 
 template <class T>
 struct prod_diff {
   template <class T1, class T2>
-  constexpr T operator()(T1&& x1, T2&& x2) const {
-    return (std::forward<T2>(x2) - std::forward<T1>(x1)) *
-           (std::forward<T2>(x2) - std::forward<T1>(x1));
+  constexpr T operator()(T1 x1, T2 x2) const {
+    return (x2 - x1) * (x2 - x1);
   }
 };
 
 template <class T>
 struct prod_sum {
   template <class T1, class T2>
-  constexpr T operator()(T1&& x1, T2&& x2) const {
-    return (std::forward<T2>(x2) + std::forward<T1>(x1)) *
-           (std::forward<T2>(x2) + std::forward<T1>(x1));
+  constexpr T operator()(T1 x1, T2 x2) const {
+    return (x2 + x1) * (x2 + x1);
   }
 };
 

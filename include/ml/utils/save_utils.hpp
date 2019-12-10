@@ -54,18 +54,18 @@ void load_array(T* data, size_t length, const std::string& file_path) {
   is.close();
 }
 
-template <class T>
-void save_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
-  std::vector<T> host_buf(buf.get_count());
+template <class T, int DIM>
+void save_array(queue& q, buffer_t<T, DIM>& buf, const std::string& file_path) {
+  std::vector<T> host_buf(buf.get_kernel_size());
   auto event = sycl_copy_device_to_host(q, buf, host_buf.data());
   event.wait_and_throw();
-  save_array(host_buf.data(), buf.get_count(), file_path);
+  save_array(host_buf.data(), host_buf.size(), file_path);
 }
 
-template <class T>
-void load_array(queue& q, sycl_vec_t<T>& buf, const std::string& file_path) {
-  std::vector<T> host_buf(buf.get_count());
-  load_array(host_buf.data(), buf.get_count(), file_path);
+template <class T, int DIM>
+void load_array(queue& q, buffer_t<T, DIM>& buf, const std::string& file_path) {
+  std::vector<T> host_buf(buf.get_kernel_size());
+  load_array(host_buf.data(), host_buf.size(), file_path);
   auto event = sycl_copy_host_to_device(q, host_buf.data(), buf);
   event.wait_and_throw();
 }

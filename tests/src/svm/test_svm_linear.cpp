@@ -41,7 +41,7 @@ void test_svm_linear() {
 
     auto smo_out = svm.get_smo_outs().front();
     assert_eq(smo_out.alphas.data_range[0], 3LU);
-    host_alphas.resize(smo_out.alphas.get_count());
+    host_alphas.resize(smo_out.alphas.get_kernel_size());
     auto event =
         ml::sycl_copy_device_to_host(q, smo_out.alphas, host_alphas.data());
     event.wait_and_throw();

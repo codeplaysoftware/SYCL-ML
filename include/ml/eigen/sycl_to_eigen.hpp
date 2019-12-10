@@ -72,7 +72,8 @@ class sycl_to_eigen_t {
         b.template reinterpret<Eigen::TensorSycl::internal::buffer_data_type_t>(
             cl::sycl::range<1>(b.get_count() * sizeof(T)));
     _host_ptr =
-        static_cast<T*>(get_eigen_device().attach_buffer(reinterpret_buffer));
+        static_cast<T*>(get_eigen_device().attach_buffer(reinterpret_buffer)) +
+        b.sub_buffer_offset.get(0);
     _tensor = std::make_unique<tensor_map_t<T, OUT_DIM, DataLayout>>(_host_ptr,
                                                                      sizes);
   }
@@ -118,6 +119,7 @@ class sycl_to_eigen_t {
 template <int IN_DIM, Eigen::StorageOptions DataLayout = Eigen::RowMajor,
           class T>
 inline auto sycl_to_scalar_eigen(buffer_t<T, IN_DIM>& b) {
+  assert_less_or_eq(1LU, b.get_kernel_size());
   return sycl_to_eigen_t<T, IN_DIM, 0, DataLayout>(b, eig_dsize_t<0>());
 }
 
@@ -138,6 +140,7 @@ template <int IN_DIM, int OUT_DIM = IN_DIM,
           class T>
 inline auto sycl_to_eigen(buffer_t<T, IN_DIM>& b, const range<R_DIM>& r) {
   static_assert(R_DIM >= IN_DIM && R_DIM <= OUT_DIM, "");
+  assert_less_or_eq(r.size(), b.get_kernel_size());
   return sycl_to_eigen_t<T, IN_DIM, OUT_DIM, DataLayout>(
       b, detail::range_to_dsize<R_DIM, OUT_DIM>(r));
 }

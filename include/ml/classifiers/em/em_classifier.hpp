@@ -82,8 +82,6 @@ class em_classifier
       auto dist_row = dist.get_row(label_idx);
       _ems[label_idx].compute_llk(q, dataset, dist_row);
     }
-    // TODO: Remove wait later
-    q.wait_and_throw();  // Wait for dist_row to write back in dist
   }
 
  private:

@@ -71,7 +71,7 @@ class log_gaussian_distribution {
   void compute(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg,
                matrix_t<T>& act_r, T& log_cov_det, T weight,
                vector_t<T>& plx_k) {
-    bool use_plx = plx_k.get_count() >= access_ker_dim(act_data, 0);
+    bool use_plx = plx_k.get_kernel_size() >= access_ker_dim(act_data, 0);
     matrix_t<T> plx_data(
         use_plx ? act_data.data_range : range<2>(),
         use_plx ? act_data.kernel_range : nd_range<2>(range<2>(), range<2>()));
@@ -127,7 +127,7 @@ class log_gaussian_distribution {
   void compute_dist(queue& q, matrix_t<T>& act_data, vector_t<T>& data_avg,
                     matrix_t<T>& act_r, T log_cov_det, vector_t<T>& dist,
                     eig_index_t data_dim) {
-    assert_less_or_eq(access_ker_dim(act_data, 0), dist.get_count());
+    assert_less_or_eq(access_ker_dim(act_data, 0), dist.get_kernel_size());
 
     matrix_t<T> center_data(act_data.data_range, act_data.kernel_range);
     mat_vec_apply_op<COL>(q, act_data, center_data, data_avg, std::minus<T>());
@@ -159,7 +159,7 @@ class log_gaussian_distribution {
   void randomize(queue& q, vector_t<T>& data_sample, T percent_rnd,
                  vector_t<T>& offset_noise, vector_t<T>& range_noise,
                  vector_t<T>& data_avg, matrix_t<T>& act_r, T& log_cov_det) {
-    assert_eq(data_avg.get_count(), data_sample.get_count());
+    assert_eq(data_avg.get_kernel_size(), data_sample.get_kernel_size());
 
     using UniformRandom = Eigen::internal::UniformRandomGenerator<T>;
     {

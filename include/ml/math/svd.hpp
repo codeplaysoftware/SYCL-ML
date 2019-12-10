@@ -178,10 +178,8 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
   SYCLIndexT act_nb_iter;
 
   for (SYCLIndexT k = 0; k < nb_vec; ++k) {
-    act_U_col.kernel_range = nd_nb_obs_range;
-    copy_mat_to_vec<COL, access::mode::discard_write>(
-        q, data, act_U_col, act_U_col.get_nd_range(), k);
-    act_U_col.kernel_range = nd_nb_obs_pow2_range;
+    copy_mat_to_vec<COL, access::mode::discard_write>(q, data, act_U_col,
+                                                      nd_nb_obs_range, k);
 
     prev_l = 0;
     act_nb_iter = 0;
@@ -228,8 +226,9 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
       }
 
       if (act_diff < epsilon ||
-          (act_nb_iter > max_nb_iter && act_diff > prev_diff))
+          (act_nb_iter > max_nb_iter && act_diff > prev_diff)) {
         break;
+      }
 
       prev_l = act_l;
       prev_diff = act_diff;
@@ -257,10 +256,8 @@ svd_out<T> svd(queue& q, matrix_t<T>& data, SYCLIndexT nb_vec = 0,
       sycl_copy(q, act_U_col, prev_U_col);
       sycl_copy(q, act_V_row, prev_V_row);
     }
-    act_U_col.kernel_range = nd_nb_obs_range;
     detail::write_vec<WriteU>::template apply<COL>(q, U, act_U_col,
                                                    nd_nb_obs_range, k);
-    act_U_col.kernel_range = nd_nb_obs_pow2_range;
     // L has as many rows as V does but is a vector so use its
     // optimal_kernel_range(nb_vec) instead of recomputing it.
     detail::write_vec<WriteV>::template apply<ROW>(q, V, act_V_row,

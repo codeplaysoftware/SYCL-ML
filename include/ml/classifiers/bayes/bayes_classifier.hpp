@@ -69,8 +69,6 @@ class bayes_classifier
       auto dist_row = dist.get_row(l);
       _distributions[l].compute_dist(q, dataset, dist_row);
     }
-    // TODO: Remove wait later
-    q.wait_and_throw();  // Wait for dist_row to write back in dist
   }
 };
 

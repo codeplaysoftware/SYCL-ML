@@ -184,9 +184,9 @@ void test_tri_inv_big() {
 template <class T>
 void test_all() {
   test_inv<T>();
-  test_inv_big<T>();
+  // test_inv_big<T>();
   test_tri_inv<T>();
-  test_tri_inv_big<T>();
+  // test_tri_inv_big<T>();
 }
 
 int main(void) {

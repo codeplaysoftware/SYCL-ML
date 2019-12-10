@@ -154,7 +154,7 @@ void run_binary_svm(const std::string& mnist_path) {
       TIME(predict_binary_svm);
       auto sycl_predicted_test_labels = svm.predict(q, split_test_data);
       // Can be rounded up to a power of 2
-      auto prediction_size = sycl_predicted_test_labels.get_count();
+      auto prediction_size = sycl_predicted_test_labels.get_kernel_size();
       host_split_predicted_test_labels.resize(prediction_size);
       sycl_predicted_test_labels.set_final_data(
           host_split_predicted_test_labels.data());

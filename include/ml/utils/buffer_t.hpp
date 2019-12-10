@@ -39,23 +39,12 @@ namespace ml {
 namespace detail {
 
 // Forward declare buffer_nd_acc_t
-template <class, access::mode, access::target>
+template <class, int, access::mode, access::target>
 class buffer_1d_acc_t;
 template <class, access::mode, data_dim, access::target>
 class buffer_2d_acc_t;
 template <class, access::mode, access::target>
 class buffer_3d_acc_t;
-
-// Specialize get_1d_kernel_nd_range
-template <int DIM>
-inline nd_range<1> get_1d_kernel_nd_range(const nd_range<DIM>& nd_rng) {
-  return get_optimal_nd_range(nd_rng.get_global_range().size());
-}
-
-template <>
-inline nd_range<1> get_1d_kernel_nd_range<1>(const nd_range<1>& nd_rng) {
-  return nd_rng;
-}
 
 // Specialize get_nd_range
 template <data_dim D, int DIM>
@@ -89,7 +78,11 @@ template <class T, int DIM>
 class buffer_t : public sycl_vec_t<T> {
  public:
   buffer_t(const sycl_vec_t<T>& b, const range<DIM>& d, const nd_range<DIM>& k)
-      : sycl_vec_t<T>(b), data_range(d), kernel_range(k) {
+      : sycl_vec_t<T>(b),
+        sub_buffer_offset(),
+        sub_buffer_range(k.get_global_linear_range()),
+        data_range(d),
+        kernel_range(k) {
     assert_rng_less_or_eq(data_range, kernel_range.get_global_range());
     assert_rng_size_less_or_eq(kernel_range.get_global_range(), b.get_count());
   }
@@ -101,11 +94,11 @@ class buffer_t : public sycl_vec_t<T> {
   buffer_t(const range<DIM>& r, const nd_range<DIM>& k)
       : buffer_t(sycl_vec_t<T>(range<1>(k.get_global_range().size())), r, k) {
 #if ML_DEBUG_BOUND_CHECK
-    if (k.get_global_range().size() &&
+    if (k.get_global_range().size() > 0 &&
         (std::is_same<T, float>::value || std::is_same<T, double>::value)) {
       T init = std::numeric_limits<T>::quiet_NaN();
       sycl_memset(get_eigen_device().sycl_queue(), *this,
-                  get_1d_kernel_nd_range(), init);
+                  get_optimal_nd_range(get_kernel_size()), init);
     }
 #endif
   }
@@ -122,56 +115,48 @@ class buffer_t : public sycl_vec_t<T> {
         data_range(),
         kernel_range(range<DIM>(), range<DIM>()) {}
 
+  buffer_t(const buffer_t&) = default;
+  buffer_t(buffer_t&&) = default;
+  buffer_t& operator=(const buffer_t&) = default;
+  buffer_t& operator=(buffer_t&&) = default;
+
   /**
    * @brief Return a continuous sub-buffer.
    *
-   * No copy is made and the parent buffer must stay alive at least as long as
-   * the sub-buffer.
+   * This fills the sub_buffer_offset and sub_buffer_range members in order
+   * to get ranged accessors with the get_access_*d methods.
+   * This does not affect get_access from the cl::sycl::buffer class.
    *
-   * @tparam OUT_DIM
    * @param offset
    * @param data_range
-   * @param kernel_range its global range must meet the base address alignment
-   * requirement
+   * @param kernel_range
    * @return a continuous sub-buffer
    */
-  template <int OUT_DIM>
-  buffer_t<T, OUT_DIM> get_sub_buffer(const id<1>& offset,
-                                      const range<OUT_DIM>& data_range,
-                                      const nd_range<OUT_DIM>& kernel_range) {
-    // TODO: Use sub-buffer instead of copying
-    // auto sub_buf = sycl_vec_t<T>(*this, offset,
-    // range<1>(kernel_range.get_global_linear_range()));
-    auto size = cl::sycl::range<1>(kernel_range.get_global_linear_range());
-    auto sub_buf = sycl_vec_t<T>(size);
-    auto event = get_eigen_device().sycl_queue().submit(
-        [this, &sub_buf, size, offset](cl::sycl::handler& cgh) {
-          auto src_acc =
-              this->template get_access<cl::sycl::access::mode::read>(cgh, size,
-                                                                      offset);
-          auto dst_acc =
-              sub_buf
-                  .template get_access<cl::sycl::access::mode::discard_write>(
-                      cgh);
-          cgh.copy(src_acc, dst_acc);
-        });
-    event.wait_and_throw();
-    return buffer_t<T, OUT_DIM>(sub_buf, data_range, kernel_range);
+  buffer_t<T, 1> get_sub_buffer(const id<1>& offset, const range<1>& data_range,
+                                const nd_range<1>& kernel_range) {
+    buffer_t<T, 1> sub_buffer(*this, data_range, kernel_range);
+    sub_buffer.sub_buffer_offset =
+        id<1>(sub_buffer_offset.get(0) + offset.get(0));
+    sub_buffer.sub_buffer_range = kernel_range.get_global_range();
+
+    assert_less_or_eq(data_range.get(0),
+                      kernel_range.get_global_range().get(0));
+    assert_less_or_eq(sub_buffer.sub_buffer_offset.get(0) +
+                          sub_buffer.sub_buffer_range.get(0),
+                      sub_buffer.get_count());
+    return sub_buffer;
   }
 
   /**
    * @brief Return a continuous sub-buffer.
    *
-   * @see get_sub_buffer(const id<OUT_DIM>&, const range<OUT_DIM>&, const
-   * nd_range<OUT_DIM>&)
-   * @tparam OUT_DIM
+   * @see get_sub_buffer(const id<1>&, const range<1>&, const nd_range<1>&)
    * @param offset
    * @param kernel_range
    * @return a continuous sub-buffer
    */
-  template <int OUT_DIM>
-  inline buffer_t<T, OUT_DIM> get_sub_buffer(
-      const id<OUT_DIM>& offset, const nd_range<OUT_DIM>& kernel_range) {
+  inline buffer_t<T, 1> get_sub_buffer(const id<1>& offset,
+                                       const nd_range<1>& kernel_range) {
     return get_sub_buffer(offset, kernel_range.get_global_range(),
                           kernel_range);
   }
@@ -179,11 +164,7 @@ class buffer_t : public sycl_vec_t<T> {
   /**
    * @brief Return a specific row of a matrix as a sub-buffer.
    *
-   * Note that the size (in bits) of a row must be divisible by the base address
-   * alignment.
-   *
-   * @see get_sub_buffer(const id<OUT_DIM>&, const range<OUT_DIM>&, const
-   * nd_range<OUT_DIM>&)
+   * @see get_sub_buffer(const id<1>&, const range<1>&, const nd_range<1>&)
    * @param row_idx row to return
    * @return a continuous sub-buffer
    */
@@ -191,20 +172,17 @@ class buffer_t : public sycl_vec_t<T> {
     static_assert(DIM == 2, "Buffer must be of dimension 2");
 
     auto ker_row_size = get_kernel_range()[1];
-    assert(ker_row_size %
-               get_device_constants()->get_sub_buffer_range_divisor<T>() ==
-           0);
-    return get_sub_buffer<1>(id<1>(row_idx * ker_row_size),
-                             range<1>(data_range[1]),
-                             get_optimal_nd_range(ker_row_size));
+    return get_sub_buffer(id<1>(row_idx * ker_row_size),
+                          range<1>(data_range[1]),
+                          get_optimal_nd_range(ker_row_size));
   }
 
   // Custom accessors for n dimensions allowing compile time transpose
   template <access::mode acc_mode,
             access::target acc_target = access::target::global_buffer>
-  inline detail::buffer_1d_acc_t<T, acc_mode, acc_target> get_access_1d(
+  inline detail::buffer_1d_acc_t<T, DIM, acc_mode, acc_target> get_access_1d(
       handler& cgh) {
-    return detail::buffer_1d_acc_t<T, acc_mode, acc_target>(cgh, *this);
+    return detail::buffer_1d_acc_t<T, DIM, acc_mode, acc_target>(cgh, *this);
   }
 
   template <access::mode acc_mode, data_dim D = LIN,
@@ -223,24 +201,27 @@ class buffer_t : public sycl_vec_t<T> {
 
   // Host accessor helper
   inline T read_to_host(SYCLIndexT i) {
-    return this->template get_access<access::mode::read>(range<1>(1),
-                                                         id<1>(i))[i];
+    T res;
+    auto event =
+        sycl_copy_device_to_host(get_eigen_device().sycl_queue(), *this, &res,
+                                 sub_buffer_offset.get(0) + i, 1);
+    event.wait_and_throw();
+    return res;
   }
 
   inline void write_from_host(SYCLIndexT i, T val) {
-    this->template get_access<access::mode::write>(range<1>(1), id<1>(i))[i] =
-        val;
+    auto event =
+        sycl_copy_host_to_device(get_eigen_device().sycl_queue(), &val, *this,
+                                 sub_buffer_offset.get(0) + i, 1);
+    event.wait_and_throw();
   }
 
   // Getters
   inline SYCLIndexT data_dim_size() const { return data_range.size(); }
 
+  template <data_dim D = LIN>
   inline range<DIM> get_kernel_range() const {
-    return kernel_range.get_global_range();
-  }
-
-  inline nd_range<1> get_1d_kernel_nd_range() const {
-    return detail::get_1d_kernel_nd_range(kernel_range);
+    return get_nd_range<D>().get_global_range();
   }
 
   template <data_dim D = LIN>
@@ -248,11 +229,15 @@ class buffer_t : public sycl_vec_t<T> {
     return detail::get_nd_range<D>(kernel_range);
   }
 
+  inline size_t get_kernel_size() const { return get_kernel_range().size(); }
+
   inline void assert_data_eq_ker() {
     assert_rng_eq(data_range, get_kernel_range());
   }
   inline void assert_square() { assert_rng_square(get_kernel_range()); }
 
+  id<1> sub_buffer_offset;
+  range<1> sub_buffer_range;
   range<DIM> data_range;
   nd_range<DIM> kernel_range;
 };
@@ -310,12 +295,17 @@ struct is_reference_access<T, access::mode::read> {
   using value = T;
 };
 
-template <class T, access::mode acc_mode, access::target acc_target>
+template <class T, int DIM, access::mode acc_mode, access::target acc_target>
 class buffer_1d_acc_t {
  public:
-  buffer_1d_acc_t(handler& cgh, buffer_t<T, 1>& b)
-      : _range(b.get_kernel_range()),
-        _acc(b.template get_access<acc_mode>(cgh)) {}
+  buffer_1d_acc_t(handler& cgh, buffer_t<T, DIM>& b)
+      :
+#if ML_DEBUG_BOUND_CHECK
+        _range(b.get_kernel_size()),
+#endif
+        _acc(b.template get_access<acc_mode>(cgh, b.sub_buffer_range,
+                                             b.sub_buffer_offset)) {
+  }
 
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT x) const {
@@ -328,8 +318,12 @@ class buffer_1d_acc_t {
     return _acc[x];
   }
 
+  inline accessor<T, 1, acc_mode, acc_target> get() { return _acc; }
+
  private:
+#if ML_DEBUG_BOUND_CHECK
   range<1> _range;
+#endif
   accessor<T, 1, acc_mode, acc_target> _acc;
 };
 
@@ -338,7 +332,8 @@ class buffer_2d_acc_t {
  public:
   buffer_2d_acc_t(handler& cgh, buffer_t<T, 2>& b)
       : _range(b.get_kernel_range()),
-        _acc(b.template get_access<acc_mode>(cgh)) {}
+        _acc(b.template get_access<acc_mode>(cgh, b.sub_buffer_range,
+                                             b.sub_buffer_offset)) {}
 
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT r, SYCLIndexT c) const {
@@ -351,6 +346,8 @@ class buffer_2d_acc_t {
     return _acc[detail::get_index_2d<D>::compute(r, c, _range[1])];
   }
 
+  inline accessor<T, 1, acc_mode, acc_target> get() { return _acc; }
+
  private:
   range<2> _range;
   accessor<T, 1, acc_mode, acc_target> _acc;
@@ -361,7 +358,8 @@ class buffer_3d_acc_t {
  public:
   buffer_3d_acc_t(handler& cgh, buffer_t<T, 3>& b)
       : _range(b.get_kernel_range()),
-        _acc(b.template get_access<acc_mode>(cgh)) {}
+        _acc(b.template get_access<acc_mode>(cgh, b.sub_buffer_range,
+                                             b.sub_buffer_offset)) {}
 
   inline typename is_reference_access<T, acc_mode>::value operator()(
       SYCLIndexT x, SYCLIndexT y, SYCLIndexT z) const {
@@ -376,6 +374,8 @@ class buffer_3d_acc_t {
     return _acc[x + _range[1] * (y + _range[2] * z)];
   }
 
+  inline accessor<T, 1, acc_mode, acc_target> get() { return _acc; }
+
  private:
   range<3> _range;
   accessor<T, 1, acc_mode, acc_target> _acc;
@@ -386,11 +386,18 @@ struct copy_vec_to_mat_impl {
   event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
                    const nd_range<1>& nd_rng, SYCLIndexT row) {
     auto rng = nd_rng.get_global_range();
+    assert_less_or_eq(matrix.sub_buffer_offset.get(0) +
+                          row * matrix.get_kernel_range()[1] + rng.size(),
+                      matrix.get_kernel_size());
+    assert_less_or_eq(rng.size() + vec.sub_buffer_offset.get(0),
+                      vec.get_kernel_size());
     return q.submit([&matrix, &vec, rng, row](handler& cgh) {
       auto matrix_acc = matrix.template get_access<write_mode>(
-          cgh, rng, id<1>(row * matrix.get_kernel_range()[1]));
-      auto vec_acc =
-          vec.template get_access<access::mode::read>(cgh, rng, id<1>(0));
+          cgh, rng,
+          id<1>(matrix.sub_buffer_offset.get(0) +
+                row * matrix.get_kernel_range()[1]));
+      auto vec_acc = vec.template get_access<access::mode::read>(
+          cgh, rng, vec.sub_buffer_offset);
       cgh.copy(vec_acc, matrix_acc);
     });
   }
@@ -402,6 +409,11 @@ template <access::mode write_mode, class T>
 struct copy_vec_to_mat_impl<COL, write_mode, T> {
   event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
                    const nd_range<1>& nd_rng, SYCLIndexT col) {
+    auto rng = nd_rng.get_global_range();
+    assert_less_or_eq(rng.size() + matrix.sub_buffer_offset.get(0),
+                      matrix.get_kernel_size());
+    assert_less_or_eq(rng.size() + vec.sub_buffer_offset.get(0),
+                      vec.get_kernel_size());
     return q.submit([&matrix, &vec, col, nd_rng](handler& cgh) {
       auto matrix_acc = matrix.template get_access_2d<access::mode::write>(cgh);
       auto vec_acc = vec.template get_access_1d<access::mode::read>(cgh);
@@ -420,11 +432,18 @@ struct copy_mat_to_vec_impl {
   event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
                    const nd_range<1>& nd_rng, SYCLIndexT row) {
     auto rng = nd_rng.get_global_range();
+    assert_less_or_eq(matrix.sub_buffer_offset.get(0) +
+                          row * matrix.get_kernel_range()[1] + rng.size(),
+                      matrix.get_kernel_size());
+    assert_less_or_eq(rng.size() + vec.sub_buffer_offset.get(0),
+                      vec.get_kernel_size());
     return q.submit([&matrix, &vec, rng, row](handler& cgh) {
       auto matrix_acc = matrix.template get_access<access::mode::read>(
-          cgh, rng, id<1>(row * matrix.get_kernel_range()[1]));
-      auto vec_acc = vec.template get_access<write_mode>(cgh, rng, id<1>(0));
-      cgh.copy(matrix_acc, vec_acc);
+          cgh, rng,
+          id<1>(matrix.sub_buffer_offset.get(0) +
+                row * matrix.get_kernel_range()[1]));
+      auto vec_acc = vec.template get_access_1d<write_mode>(cgh);
+      cgh.copy(matrix_acc, vec_acc.get());
     });
   }
 };
@@ -435,6 +454,11 @@ template <access::mode write_mode, class T>
 struct copy_mat_to_vec_impl<COL, write_mode, T> {
   event operator()(queue& q, matrix_t<T>& matrix, vector_t<T>& vec,
                    const nd_range<1>& nd_rng, SYCLIndexT col) {
+    auto rng = nd_rng.get_global_range();
+    assert_less_or_eq(rng.size() + matrix.sub_buffer_offset.get(0),
+                      matrix.get_kernel_size());
+    assert_less_or_eq(rng.size() + vec.sub_buffer_offset.get(0),
+                      vec.get_kernel_size());
     return q.submit([&matrix, &vec, nd_rng, col](handler& cgh) {
       auto matrix_acc = matrix.template get_access_2d<access::mode::read>(cgh);
       auto vec_acc = vec.template get_access_1d<write_mode>(cgh);
@@ -597,7 +621,7 @@ buffer_t<DataT, DIM> split_by_index(queue& q, buffer_t<DataT, DIM>& buffer,
 template <class T>
 std::ostream& operator<<(std::ostream& os, vector_t<T>& v) {
   return print(os, v.template get_access<access::mode::read>(), 1,
-               v.get_count());
+               v.data_range[0]);
 }
 
 template <class T>

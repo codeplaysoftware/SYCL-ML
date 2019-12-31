@@ -73,7 +73,6 @@ event transpose(queue& q, matrix_t<T>& in, matrix_t<T>& out) {
   });
 }
 
-template <data_dim, data_dim>
 class ml_mat_inplace_binary_op;
 
 /**
@@ -99,7 +98,8 @@ event mat_inplace_binary_op(queue& q, matrix_t<T>& in_out1, matrix_t<T>& in2,
     auto in_out1_acc =
         in_out1.template get_access_2d<access::mode::read_write, D1>(cgh);
     auto in2_acc = in2.template get_access_2d<access::mode::read, D2>(cgh);
-    cgh.parallel_for<NameGen<0, ml_mat_inplace_binary_op<D1, D2>, T, BinaryOp>>(
+    cgh.parallel_for<
+        NameGen<D1 * 2 + D2, ml_mat_inplace_binary_op, T, BinaryOp>>(
         in_out1.template get_nd_range<D1>(), [=](nd_item<2> item) {
           auto row = item.get_global_id(0);
           auto col = item.get_global_id(1);

@@ -47,7 +47,7 @@ void mat_mul(queue&, buffer_t<T, DIM1>& b1, buffer_t<T, DIM2>& b2,
   static_assert(DIM3 == std::min(DIM1, DIM2), "");
 
   // Act as if data_dim were LIN because the transpose is handled by dims
-  // Force dim 2 because SYCL Eigen does not have all possible contractions
+  // Reshape inputs and outputs to be 2D
   auto eig_t1 = sycl_to_eigen<DIM1, 2>(b1);
   auto eig_t2 = sycl_to_eigen<DIM2, 2>(b2);
   auto eig_t3 = sycl_to_eigen<DIM3, 2>(b3);

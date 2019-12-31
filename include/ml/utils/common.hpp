@@ -25,7 +25,6 @@
 
 #include "ml/eigen/sycl_to_eigen.hpp"
 #include "ml/utils/save_utils.hpp"
-#include "ml/utils/sycl_helper.hpp"
 
 // Debug
 #include "ml/utils/debug/assert.hpp"

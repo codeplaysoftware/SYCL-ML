@@ -19,8 +19,9 @@
 #include "ml/math/mat_ops.hpp"
 #include "utils/utils.hpp"
 
-template <class T, ml::data_dim D>
+template <class T>
 void test_cov_square() {
+  static constexpr ml::data_dim D = ml::LIN;
   std::array<T, 9> host_data{1.0, 4.0, 7.0, 2.0, 0.0, -8.0, 1.0, 2.0, 1.0};
 
   std::array<T, 9> host_cov;
@@ -46,21 +47,22 @@ void test_cov_square() {
   ml::print(host_cov, 3, 3);
   */
 
-  std::array<T, 9> expected{6.0,         -10.0,       0.0,
-                            host_cov[1], 56.0 / 3.0,  2.0 / 3.0,
-                            host_cov[2], host_cov[5], 2.0 / 9.0};
+  std::array<T, 9> expected{2.0 / 9.0,   -2.0 / 3.0,  -8.0 / 3.0,
+                            host_cov[1], 8.0 / 3.0,   10.0,
+                            host_cov[2], host_cov[5], 38.0};
   assert_vec_almost_eq(host_cov, expected);
 }
 
-template <class T, ml::data_dim D>
+template <class T>
 void test_cov_general() {
-  // 3 observations that have 2 variables each
+  static constexpr ml::data_dim D = ml::TR;
+  // 3 observations that have 2 variables each (transposed)
   std::array<T, 6> host_data{1.0, 2.0, 3.0, 2.0, 2.0, 11.0};
 
   std::array<T, 4> host_cov;
   {
     cl::sycl::queue& q = create_queue();
-    ml::matrix_t<T> sycl_data(host_data.data(), cl::sycl::range<2>(3, 2));
+    ml::matrix_t<T> sycl_data(host_data.data(), cl::sycl::range<2>(2, 3));
     ml::vector_t<T> sycl_data_avg(cl::sycl::range<1>(2));
 
     ml::avg<D>(q, sycl_data, sycl_data_avg);
@@ -79,14 +81,14 @@ void test_cov_general() {
   ml::print(host_cov, 2, 2);
   */
 
-  std::array<T, 4> expected{2.0 / 3.0, 0.0, host_cov[1], 18.0};
+  std::array<T, 4> expected{2.0 / 3.0, 3.0, host_cov[1], 18.0};
   assert_vec_almost_eq(host_cov, expected);
 }
 
 template <class T>
 void test_all() {
-  test_cov_square<T, ml::COL>();
-  test_cov_general<T, ml::ROW>();
+  test_cov_square<T>();
+  test_cov_general<T>();
 }
 
 int main(void) {

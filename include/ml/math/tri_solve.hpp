@@ -20,7 +20,6 @@
 
 namespace ml {
 
-template <data_dim, data_dim>
 class ml_mat_tri_solve;
 class ml_mat_tri_solve_div_row;
 
@@ -69,7 +68,7 @@ event compute_x(queue& q, matrix_t<T>& A, matrix_t<T>& X, SYCLIndexT row_idx) {
     auto x_acc = X.template get_access_2d<access::mode::read_write, DX>(cgh);
     const auto apply_subtract_condition =
         typename detail::tri_solve_data_dim<DA>::apply_subtract_condition_op();
-    cgh.parallel_for<NameGen<0, ml_mat_tri_solve<DA, DX>, T>>(
+    cgh.parallel_for<NameGen<DA * 2 + DX, ml_mat_tri_solve, T>>(
         X.get_nd_range(), [=](nd_item<2> item) {
           auto row = item.get_global_id(DX);
           auto col = item.get_global_id(opp<DX>());

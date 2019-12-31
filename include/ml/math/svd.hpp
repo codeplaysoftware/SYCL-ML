@@ -28,18 +28,13 @@ namespace ml {
 
 namespace detail {
 
-class ml_svd_stabilize_vec;
 template <class T>
 void stabilize_vec(queue& q, vector_t<T>& prev_vec, vector_t<T>& act_vec,
                    T epsilon) {
-  T a = sycl_inner_product(q, prev_vec, act_vec);
+  T a = sycl_dot_product(q, prev_vec, act_vec);
 
   if (a > epsilon) {
-    sycl::sycl_execution_policy<NameGen<0, ml_svd_stabilize_vec, T>>
-        sycl_policy(q);
-    transform(sycl_policy, begin(act_vec), end(act_vec), begin(prev_vec),
-              begin(act_vec),
-              [=](T act_u_k, T prev_u_k) { return act_u_k - prev_u_k * a; });
+    vec_binary_op(q, act_vec, prev_vec, functors::amortize<T>(a));
   }
 }
 

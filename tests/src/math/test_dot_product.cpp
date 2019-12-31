@@ -19,7 +19,7 @@
 #include "utils/utils.hpp"
 
 template <class T>
-void test_inner_product_self() {
+void test_dot_product_self() {
   constexpr size_t SIZE = 4;
   std::array<T, SIZE> in{1, 0.5, -1, 0};
   T res;
@@ -27,7 +27,7 @@ void test_inner_product_self() {
   {
     cl::sycl::queue& q = create_queue();
     ml::vector_t<T> sycl_vec(in.data(), cl::sycl::range<1>(in.size()));
-    res = ml::sycl_inner_product(q, sycl_vec);
+    res = ml::sycl_dot_product(q, sycl_vec);
     clear_eigen_device();
   }
 
@@ -42,7 +42,7 @@ void test_inner_product_self() {
 }
 
 template <class T>
-void test_inner_product_other() {
+void test_dot_product_other() {
   constexpr size_t SIZE = 4;
   std::array<T, SIZE> in1{1, 2, 3, 4};
   std::array<T, SIZE> in2{2, 2, 1, 0.5};
@@ -54,7 +54,7 @@ void test_inner_product_other() {
     sycl_vec1.set_final_data(nullptr);
     ml::vector_t<T> sycl_vec2(in2.data(), cl::sycl::range<1>(in2.size()));
     sycl_vec2.set_final_data(nullptr);
-    res = ml::sycl_inner_product(q, sycl_vec1, sycl_vec2);
+    res = ml::sycl_dot_product(q, sycl_vec1, sycl_vec2);
     clear_eigen_device();
   }
 
@@ -74,8 +74,8 @@ void test_inner_product_other() {
 
 template <class T>
 void test_all() {
-  test_inner_product_self<T>();
-  test_inner_product_other<T>();
+  test_dot_product_self<T>();
+  test_dot_product_other<T>();
 }
 
 int main() {

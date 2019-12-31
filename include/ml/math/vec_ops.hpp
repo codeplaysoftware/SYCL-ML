@@ -20,6 +20,8 @@
 #include <functional>
 
 #include "ml/math/functors.hpp"
+#include "ml/utils/buffer_t.hpp"
+#include "ml/utils/copy.hpp"
 
 namespace ml {
 
@@ -34,27 +36,35 @@ class ml_vec_unary_op;
  * @param[in] in
  * @param[out] out
  * @param op
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class UnaryOp, class T>
-void vec_unary_op(queue& q, sycl_vec_t<T>& in, sycl_vec_t<T>& out,
-                  UnaryOp op = UnaryOp()) {
-  sycl::sycl_execution_policy<NameGen<0, ml_vec_unary_op, T, UnaryOp>>
-      sycl_policy(q);
-  transform(sycl_policy, begin(in), end(in), begin(out), op);
+template <class UnaryOp, class T, int DIM>
+event vec_unary_op(queue& q, buffer_t<T, DIM>& in, buffer_t<T, DIM>& out,
+                   UnaryOp op = UnaryOp()) {
+  return q.submit([&in, &out, op](handler& cgh) {
+    auto in_acc = in.template get_access_1d<access::mode::read>(cgh);
+    auto out_acc = out.template get_access_1d<access::mode::write>(cgh);
+    cgh.parallel_for<NameGen<DIM, ml_vec_unary_op, T, UnaryOp>>(
+        out.get_nd_range(), [=](nd_item<DIM> item) {
+          auto id = item.get_global_linear_id();
+          out_acc(id) = op(in_acc(id));
+        });
+  });
 }
 
 /**
- * @see vec_unary_op(queue&, sycl_vec_t<T>&, sycl_vec_t<T>&, UnaryOp)
+ * @see vec_unary_op(queue&, buffer_t<T, DIM>&, buffer_t<T, DIM>&, UnaryOp)
  * @tparam UnaryOp T -> T
  * @tparam T
  * @param q
  * @param[in,out] in_out
  * @param op
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class UnaryOp, class T>
-inline void vec_unary_op(queue& q, sycl_vec_t<T>& in_out,
-                         UnaryOp op = UnaryOp()) {
-  vec_unary_op(q, in_out, in_out, op);
+template <class UnaryOp, class T, int DIM>
+inline event vec_unary_op(queue& q, buffer_t<T, DIM>& in_out,
+                          UnaryOp op = UnaryOp()) {
+  return vec_unary_op(q, in_out, in_out, op);
 }
 
 class ml_vec_binary_op;
@@ -69,35 +79,42 @@ class ml_vec_binary_op;
  * @param[in] in2
  * @param[out] out
  * @param op
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class BinaryOp, class T>
-void vec_binary_op(queue& q, sycl_vec_t<T>& in1, sycl_vec_t<T>& in2,
-                   sycl_vec_t<T>& out, BinaryOp op = BinaryOp()) {
-  sycl::sycl_execution_policy<NameGen<0, ml_vec_binary_op, T, BinaryOp>>
-      sycl_policy(q);
-  transform(sycl_policy, begin(in1), end(in1), begin(in2), begin(out), op);
+template <class BinaryOp, class T, int DIM>
+event vec_binary_op(queue& q, buffer_t<T, DIM>& in1, buffer_t<T, DIM>& in2,
+                    buffer_t<T, DIM>& out, BinaryOp op = BinaryOp()) {
+  return q.submit([&in1, &in2, &out, op](handler& cgh) {
+    auto in1_acc = in1.template get_access_1d<access::mode::read>(cgh);
+    auto in2_acc = in2.template get_access_1d<access::mode::read>(cgh);
+    auto out_acc = out.template get_access_1d<access::mode::write>(cgh);
+    cgh.parallel_for<NameGen<DIM, ml_vec_binary_op, T, BinaryOp>>(
+        out.get_nd_range(), [=](nd_item<DIM> item) {
+          auto id = item.get_global_linear_id();
+          out_acc(id) = op(in1_acc(id), in2_acc(id));
+        });
+  });
 }
 
 /**
- * @see vec_binary_op(queue&, sycl_vec_t<T>&, sycl_vec_t<T>&, sycl_vec_t<T>&,
- * BinaryOp)
+ * @see vec_binary_op(queue&, buffer_t<T, DIM>&, buffer_t<T, DIM>&, buffer_t<T,
+ * DIM>&, BinaryOp)
  * @tparam BinaryOp T -> T -> T
  * @tparam T
  * @param q
  * @param[in, out] in_out1
  * @param[in] in2
  * @param op
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class BinaryOp, class T>
-inline void vec_binary_op(queue& q, sycl_vec_t<T>& in_out1, sycl_vec_t<T>& in2,
-                          BinaryOp op = BinaryOp()) {
-  vec_binary_op(q, in_out1, in2, in_out1, op);
+template <class BinaryOp, class T, int DIM>
+inline event vec_binary_op(queue& q, buffer_t<T, DIM>& in_out1,
+                           buffer_t<T, DIM>& in2, BinaryOp op = BinaryOp()) {
+  return vec_binary_op(q, in_out1, in2, in_out1, op);
 }
 
-class ml_inner_prod;
-
 /**
- * @brief Compute the inner product (or dot product).
+ * @brief Compute the dot product.
  *
  * @tparam T
  * @param q
@@ -105,24 +122,31 @@ class ml_inner_prod;
  * @param v2
  * @return <v1, v2>
  */
-template <class T>
-T sycl_inner_product(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
-  sycl::sycl_execution_policy<NameGen<0, ml_inner_prod, T>> sycl_policy(q);
-  return inner_product(sycl_policy, begin(v1), end(v1), begin(v2), 0.0f);
+template <class T, int DIM>
+T sycl_dot_product(queue& q, buffer_t<T, DIM>& v1, buffer_t<T, DIM>& v2) {
+  auto eig_v1 = sycl_to_eigen(v1);
+  auto eig_v2 = sycl_to_eigen(v2);
+  vector_t<T> out(range<1>(1));
+  auto eig_out = sycl_to_eigen<1, 0>(out);
+  eig_out.device() = (eig_v1.tensor() * eig_v2.tensor()).sum();
+  T dot;
+  auto event = sycl_copy_device_to_host(q, out, &dot);
+  event.wait_and_throw();
+  return dot;
 }
 
 /**
- * @brief Compute the inner product (or dot product).
+ * @brief Compute the dot product.
  *
- * @see sycl_inner_product(queue&, sycl_vec_t<T>&, sycl_vec_t<T>&)
+ * @see sycl_dot_product(queue&, buffer_t<T, DIM>&, buffer_t<T, DIM>&)
  * @tparam T
  * @param q
  * @param v
  * @return <v, v>
  */
-template <class T>
-inline T sycl_inner_product(queue& q, sycl_vec_t<T>& v) {
-  return sycl_inner_product(q, v, v);
+template <class T, int DIM>
+inline T sycl_dot_product(queue& q, buffer_t<T, DIM>& v) {
+  return sycl_dot_product(q, v, v);
 }
 
 /**
@@ -133,30 +157,9 @@ inline T sycl_inner_product(queue& q, sycl_vec_t<T>& v) {
  * @param v
  * @return ||v||
  */
-template <class T>
-T sycl_norm(queue& q, sycl_vec_t<T>& v) {
-  return std::sqrt(sycl_inner_product(q, v));
-}
-
-class ml_transform;
-
-/**
- * @brief v = op(v, cst).
- *
- * @tparam BinaryOp T -> T -> T
- * @tparam T
- * @param q
- * @param v
- * @param cst
- * @param op
- */
-template <class BinaryOp, class T>
-void sycl_transform(queue& q, sycl_vec_t<T>& v, T cst,
-                    BinaryOp op = BinaryOp()) {
-  sycl::sycl_execution_policy<NameGen<0, ml_transform, T, BinaryOp>>
-      sycl_policy(q);
-  transform(sycl_policy, begin(v), end(v), begin(v),
-            [=](T val) { return op(val, cst); });
+template <class T, int DIM>
+T sycl_norm(queue& q, buffer_t<T, DIM>& v) {
+  return std::sqrt(sycl_dot_product(q, v));
 }
 
 /**
@@ -166,10 +169,12 @@ void sycl_transform(queue& q, sycl_vec_t<T>& v, T cst,
  * @param q
  * @param v
  * @param norm
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class T>
-inline void sycl_normalize(queue& q, sycl_vec_t<T>& v, T norm) {
-  sycl_transform(q, v, norm, std::divides<T>());
+template <class T, int DIM>
+inline event sycl_normalize(queue& q, buffer_t<T, DIM>& v, T norm) {
+  return vec_unary_op(
+      q, v, functors::partial_binary_op<T, std::multiplies<T>>(1 / norm));
 }
 
 /**
@@ -178,13 +183,12 @@ inline void sycl_normalize(queue& q, sycl_vec_t<T>& v, T norm) {
  * @tparam T
  * @param q
  * @param v
+ * @return A SYCL event corresponding to the submitted operation
  */
-template <class T>
-inline void sycl_normalize(queue& q, sycl_vec_t<T>& v) {
-  sycl_normalize(q, v, sycl_norm(q, v));
+template <class T, int DIM>
+inline event sycl_normalize(queue& q, buffer_t<T, DIM>& v) {
+  return sycl_normalize(q, v, sycl_norm(q, v));
 }
-
-class ml_dist2;
 
 /**
  * @brief Distance between v1 and v2 squared.
@@ -195,14 +199,19 @@ class ml_dist2;
  * @param v2
  * @return ||v1 - v2||^2
  */
-template <class T>
-T sycl_dist2(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
-  sycl::sycl_execution_policy<NameGen<0, ml_dist2, T>> sycl_policy(q);
-  return inner_product(sycl_policy, begin(v1), end(v1), begin(v2), 0.0f,
-                       std::plus<T>(), functors::prod_diff<T>());
+template <class T, int DIM>
+T sycl_dist2(queue& q, buffer_t<T, DIM>& v1, buffer_t<T, DIM>& v2) {
+  auto eig_v1 = sycl_to_eigen(v1);
+  auto eig_v2 = sycl_to_eigen(v2);
+  vector_t<T> out(range<1>(1));
+  auto eig_out = sycl_to_eigen<1, 0>(out);
+  auto cwise_diff = eig_v1.tensor() - eig_v2.tensor();
+  eig_out.device() = (cwise_diff * cwise_diff).sum();
+  T dist2;
+  auto event = sycl_copy_device_to_host(q, out, &dist2);
+  event.wait_and_throw();
+  return dist2;
 }
-
-class ml_dist2_opposite;
 
 /**
  * @brief Distance between v1 and -v2 squared.
@@ -213,11 +222,18 @@ class ml_dist2_opposite;
  * @param v2
  * @return ||v1 + v2||^2
  */
-template <class T>
-T sycl_dist2_opposite(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
-  sycl::sycl_execution_policy<NameGen<0, ml_dist2_opposite, T>> sycl_policy(q);
-  return inner_product(sycl_policy, begin(v1), end(v1), begin(v2), 0.0f,
-                       std::plus<T>(), functors::prod_sum<T>());
+template <class T, int DIM>
+T sycl_dist2_opposite(queue& q, buffer_t<T, DIM>& v1, buffer_t<T, DIM>& v2) {
+  auto eig_v1 = sycl_to_eigen(v1);
+  auto eig_v2 = sycl_to_eigen(v2);
+  vector_t<T> out(range<1>(1));
+  auto eig_out = sycl_to_eigen<1, 0>(out);
+  auto cwise_sum = eig_v1.tensor() + eig_v2.tensor();
+  eig_out.device() = (cwise_sum * cwise_sum).sum();
+  T dist2;
+  auto event = sycl_copy_device_to_host(q, out, &dist2);
+  event.wait_and_throw();
+  return dist2;
 }
 
 /**
@@ -229,8 +245,8 @@ T sycl_dist2_opposite(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
  * @param v2
  * @return ||v1 - v2||
  */
-template <class T>
-inline T sycl_dist(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
+template <class T, int DIM>
+inline T sycl_dist(queue& q, buffer_t<T, DIM>& v1, buffer_t<T, DIM>& v2) {
   return std::sqrt(sycl_dist2(q, v1, v2));
 }
 
@@ -246,14 +262,12 @@ inline T sycl_dist(queue& q, sycl_vec_t<T>& v1, sycl_vec_t<T>& v2) {
  * @param v2
  * @return min(||v1 - v2||, ||v1 + v2||)
  */
-template <class T>
-inline T sycl_dist_no_direction(queue& q, sycl_vec_t<T>& v1,
-                                sycl_vec_t<T>& v2) {
+template <class T, int DIM>
+inline T sycl_dist_no_direction(queue& q, buffer_t<T, DIM>& v1,
+                                buffer_t<T, DIM>& v2) {
   return std::sqrt(
       std::min(sycl_dist2(q, v1, v2), sycl_dist2_opposite(q, v1, v2)));
 }
-
-class ml_min;
 
 /**
  * @brief Min of v.
@@ -263,14 +277,17 @@ class ml_min;
  * @param v
  * @return min(v)
  */
-template <class T>
-T sycl_min(queue& q, sycl_vec_t<T>& v) {
-  sycl::sycl_execution_policy<NameGen<0, ml_min, T>> sycl_policy(q);
-  return reduce(sycl_policy, begin(v), end(v), std::numeric_limits<T>::max(),
-                [](T a, T b) { return a < b ? a : b; });
+template <class T, int DIM>
+T sycl_min(queue& q, buffer_t<T, DIM>& v) {
+  auto eig_v = sycl_to_eigen(v);
+  vector_t<T> out(range<1>(1));
+  auto eig_out = sycl_to_eigen<1, 0>(out);
+  eig_out.device() = eig_v.tensor().minimum();
+  T min;
+  auto event = sycl_copy_device_to_host(q, out, &min);
+  event.wait_and_throw();
+  return min;
 }
-
-class ml_max;
 
 /**
  * @brief Max of v.
@@ -280,11 +297,16 @@ class ml_max;
  * @param v
  * @return max(v)
  */
-template <class T>
-T sycl_max(queue& q, sycl_vec_t<T>& v) {
-  sycl::sycl_execution_policy<NameGen<0, ml_max, T>> sycl_policy(q);
-  return reduce(sycl_policy, begin(v), end(v), std::numeric_limits<T>::min(),
-                [](T a, T b) { return a > b ? a : b; });
+template <class T, int DIM>
+T sycl_max(queue& q, buffer_t<T, DIM>& v) {
+  auto eig_v = sycl_to_eigen(v);
+  vector_t<T> out(range<1>(1));
+  auto eig_out = sycl_to_eigen<1, 0>(out);
+  eig_out.device() = eig_v.tensor().maximum();
+  T max;
+  auto event = sycl_copy_device_to_host(q, out, &max);
+  event.wait_and_throw();
+  return max;
 }
 
 }  // namespace ml

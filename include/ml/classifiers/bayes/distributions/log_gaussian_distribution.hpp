@@ -255,11 +255,11 @@ class log_gaussian_distribution {
             if (row > col) {
               act_rc = 0;
             } else if (row < col) {
-              act_rc = (act_rc * 3 - 1.5) /
-                       (cl::sycl::sqrt(static_cast<T>(row * col)) + 1);
+              act_rc = (act_rc * T(3) - T(1.5)) /
+                       (cl::sycl::sqrt(static_cast<T>(row * col)) + T(1));
             } else {
-              act_rc = (((act_rc - 0.5) >= 0) * 2 - 1) *
-                       (act_rc + 0.5 + T(1) / (row + 1));
+              act_rc = (((act_rc - T(0.5)) >= T(0)) * T(2) - T(1)) *
+                       (act_rc + T(0.5) + T(1) / (row + 1));
             }
           });
     });

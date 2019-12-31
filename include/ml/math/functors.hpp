@@ -71,19 +71,12 @@ struct exp_diff {
 };
 
 template <class T>
-struct prod_diff {
-  template <class T1, class T2>
-  constexpr T operator()(T1 x1, T2 x2) const {
-    return (x2 - x1) * (x2 - x1);
-  }
-};
+struct amortize {
+  amortize(T factor) : _factor(factor) {}
+  constexpr T operator()(T act, T prev) const { return act - prev * _factor; }
 
-template <class T>
-struct prod_sum {
-  template <class T1, class T2>
-  constexpr T operator()(T1 x1, T2 x2) const {
-    return (x2 + x1) * (x2 + x1);
-  }
+ private:
+  T _factor;
 };
 
 }  // namespace functors

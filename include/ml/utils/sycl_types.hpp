@@ -34,6 +34,9 @@ using SYCLIndexT = size_t;
 template <class T, class Alloc = cl::sycl::default_allocator>
 using sycl_vec_t = buffer<T, 1, Alloc>;
 
+template <int Index, typename... Details>
+class NameGen {};
+
 }  // namespace ml
 
 #endif  // INCLUDE_ML_UTILS_SYCL_TYPES_HPP

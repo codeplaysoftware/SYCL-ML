@@ -68,8 +68,7 @@ class extremum_dist : public virtual classifier<DataT, LabelT> {
                             matrix_t<DataT>& dist) = 0;
 
   template <int Index, typename... Details>
-  using NameGenED =
-      NameGen<Index, extremum_dist, Details..., DataT, LabelT, Op>;
+  using NameGenED = NameGen<Index, Details..., DataT, LabelT, Op>;
 
  public:
   virtual vector_t<LabelT> predict(queue& q,
@@ -90,9 +89,7 @@ class extremum_dist : public virtual classifier<DataT, LabelT> {
     // Find extremum dist for each column
     vector_t<LabelT> predicted_labels(range<1>(nb_obs),
                                       get_optimal_nd_range(padded_nb_obs));
-    Op comp_op;
-    q.submit([this, &dist, &predicted_labels, nb_labels,
-              comp_op](handler& cgh) {
+    q.submit([this, &dist, &predicted_labels, nb_labels](handler& cgh) {
       auto dist_acc = dist.template get_access_2d<access::mode::read>(cgh);
       auto label_idx_to_user_acc =
           this->_label_idx_to_label_user
@@ -106,7 +103,7 @@ class extremum_dist : public virtual classifier<DataT, LabelT> {
             auto extremum_index = 0;
             auto extremum_dist = dist_acc(extremum_index, col);
             for (unsigned i = 1; i < nb_labels; ++i) {  // Loop is small enough
-              if (comp_op(dist_acc(i, col), extremum_dist)) {
+              if (Op()(dist_acc(i, col), extremum_dist)) {
                 extremum_dist = dist_acc(i, col);
                 extremum_index = i;
               }

@@ -22,7 +22,7 @@
 #include "utils/utils.hpp"
 
 template <class T>
-void test_qr() {
+void test_small_qr() {
   static constexpr unsigned NB_OBS = 5;
   static constexpr unsigned DATA_DIM = 3;
   std::array<T, NB_OBS * DATA_DIM> host_data{1.0,  4.0,  7.0, 2.0,  0.0,
@@ -102,7 +102,7 @@ void test_qr_square() {
 
 class MLNormalizeR;
 template <class T>
-void test_optimized_qr() {
+void test_qr() {
   static constexpr unsigned NB_OBS = 103;
   static constexpr unsigned DATA_DIM = 64;
   std::array<T, NB_OBS * DATA_DIM> host_data;
@@ -128,8 +128,7 @@ void test_optimized_qr() {
     // QR
     ml::qr(q, sycl_data);
     ml::matrix_t<T> sycl_r(cl::sycl::range<2>(DATA_DIM, DATA_DIM));
-    T factor = 1 / std::sqrt(NB_OBS);
-    q.submit([&sycl_data, &sycl_r, factor](cl::sycl::handler& cgh) {
+    q.submit([&sycl_data, &sycl_r](cl::sycl::handler& cgh) {
       auto old_r_acc =
           sycl_data.template get_access_2d<cl::sycl::access::mode::read>(cgh);
       auto new_r_acc =
@@ -139,7 +138,9 @@ void test_optimized_qr() {
           sycl_r.get_nd_range(), [=](cl::sycl::nd_item<2> item) {
             auto row = item.get_global_id(0);
             auto col = item.get_global_id(1);
-            new_r_acc(row, col) = col >= row ? old_r_acc(row, col) * factor : 0;
+            new_r_acc(row, col) =
+                col >= row ? old_r_acc(row, col) / cl::sycl::sqrt(T(NB_OBS))
+                           : 0;
           });
     });
 
@@ -157,9 +158,9 @@ void test_optimized_qr() {
 
 template <class T>
 void test_all() {
-  test_qr<T>();
+  test_small_qr<T>();
   test_qr_square<T>();
-  test_optimized_qr<T>();
+  test_qr<T>();
 }
 
 int main(void) {

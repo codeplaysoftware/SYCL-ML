@@ -18,7 +18,6 @@
 
 #include <cmath>
 
-// Should be included last
 #undef NDEBUG
 #include <cassert>
 

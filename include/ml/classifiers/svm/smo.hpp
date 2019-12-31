@@ -17,6 +17,7 @@
 #define INCLUDE_ML_CLASSIFIERS_SVM_SMO_HPP
 
 #include "ml/classifiers/svm/kernel_cache.hpp"
+#include "ml/math/functors.hpp"
 
 namespace ml {
 

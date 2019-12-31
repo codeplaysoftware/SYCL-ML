@@ -31,6 +31,8 @@
 
 namespace ml {
 
+class ml_add_weights_tmp;
+
 namespace detail {
 
 class ml_em_add_weights;

@@ -8,17 +8,17 @@ endif()
 
 if(NOT Eigen_FOUND AND (SYCLML_DOWNLOAD_EIGEN OR SYCLML_DOWNLOAD_MISSING_DEPS))
   include(ExternalProject)
-  set(EIGEN_REPO "https://bitbucket.org/codeplaysoftware/eigen" CACHE STRING
+  set(EIGEN_REPO "https://gitlab.com/libeigen/eigen" CACHE STRING
     "Eigen repository to use"
   )
-  set(EIGEN_HG_TAG "b865e5c" CACHE STRING
-    "Hg tag, branch or commit to use for the Eigen library"
+  set(EIGEN_GIT_TAG "00f3275" CACHE STRING
+    "Git tag, branch or commit to use for the Eigen library"
   )
   set(EIGEN_SOURCE_DIR ${PROJECT_BINARY_DIR}/Eigen-src)
   if(NOT TARGET Eigen_download)
     ExternalProject_Add(Eigen_download
-      HG_REPOSITORY     ${EIGEN_REPO}
-      HG_TAG            ${EIGEN_HG_TAG}
+      GIT_REPOSITORY    ${EIGEN_REPO}
+      GIT_TAG           ${EIGEN_GIT_TAG}
       SOURCE_DIR        ${EIGEN_SOURCE_DIR}
       CONFIGURE_COMMAND ""
       BUILD_COMMAND     ""
@@ -31,7 +31,7 @@ if(NOT Eigen_FOUND AND (SYCLML_DOWNLOAD_EIGEN OR SYCLML_DOWNLOAD_MISSING_DEPS))
 
   find_package(Eigen)
   add_dependencies(Eigen Eigen_download)
-  mark_as_advanced(EIGEN_REPO EIGEN_HG_TAG)
+  mark_as_advanced(EIGEN_REPO EIGEN_GIT_TAG)
 endif()
 
 if(NOT Eigen_FOUND)

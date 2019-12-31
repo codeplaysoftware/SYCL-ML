@@ -43,7 +43,6 @@ inline void write_pixel(std::ofstream& ofs,
  * nan and number of inf.
  *
  * @tparam T underlying type of each element of \p data
- * @tparam Data 1d host buffer type with a square bracket accessor
  * @param filename file to save to. Left unmodified if it ends by ".bmp"
  * otherwise append whether the normalize and abs options where used.
  * @param data
@@ -63,8 +62,8 @@ inline void write_pixel(std::ofstream& ofs,
  * @param repeat_offset if \p nb_repeat is greater than 1, this will ignore a
  * block of data after the one already read.
  */
-template <class T, class Data>
-void write_bmp_grayscale(std::string filename, const Data& data,
+template <class T>
+void write_bmp_grayscale(std::string filename, const T* data,
                          unsigned data_nb_cols, unsigned img_nb_rows,
                          unsigned img_nb_cols, bool normalize = true,
                          bool abs = false, T min = 0, T max = 0,
@@ -159,70 +158,68 @@ void write_bmp_grayscale(std::string filename, const Data& data,
   }
   std::cout << "..." << std::endl;
 
-  /*if (nb_nan != 0 || nb_inf != 0)*/ {
-    get_data_f get_data_if_norm = get_data_if_abs;
-    T min_max_diff = max - min;
-    T norm_factor = min_max_diff ? T(255.0) / min_max_diff : T(1);
-    if (normalize) {
-      get_data_if_norm = [&](long r, long c) {
-        return (get_data_if_abs(r, c) - min) * norm_factor;
-      };
+  get_data_f get_data_if_norm = get_data_if_abs;
+  T min_max_diff = max - min;
+  T norm_factor = min_max_diff ? T(255.0) / min_max_diff : T(1);
+  if (normalize) {
+    get_data_if_norm = [&](long r, long c) {
+      return (get_data_if_abs(r, c) - min) * norm_factor;
+    };
+  }
+
+  ofs << "BM";
+  struct {
+    uint32_t file_size;
+    uint32_t reserved = 0;
+    uint32_t off_bits = 54;
+  } file_header;
+  uint32_t pad_size = (4 - ((3 * img_nb_cols) % 4)) % 4;
+  file_header.file_size =
+      54 + 3 * (image_size + nb_repeat * img_nb_rows * pad_size);
+  ofs.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+
+  struct {
+    uint32_t size = 40;
+    uint32_t w;
+    uint32_t h;
+    uint16_t planes = 0;
+    uint16_t bit_count = 24;  // 24 to skip the color table
+    uint32_t compression = 0;
+    uint32_t size_image = 0;
+    uint32_t x_pels_per_meter = 0;
+    uint32_t y_pels_per_meter = 0;
+    uint32_t clr_used = 0;
+    uint32_t clr_important = 0;
+  } file_info;
+  file_info.w = static_cast<uint32_t>(img_nb_cols);
+  file_info.h = static_cast<uint32_t>(img_nb_rows * nb_repeat);
+  ofs.write(reinterpret_cast<const char*>(&file_info), sizeof(file_info));
+
+  char pad[]{0, 0, 0};
+  unsigned char byte;
+  unsigned act_byte = 0;
+
+  for_each_pixel(get_data_if_norm, [&](T d) {
+    if (std::isnan(d)) {
+      detail::write_pixel(ofs, {0, 0, 255});  // red
+    } else if (std::isinf(d)) {
+      detail::write_pixel(ofs, {0, 255, 0});  // green
+    } else {
+      byte = static_cast<unsigned char>(
+          std::min(std::max(T(std::round(d)), T(0)), T(255)));
+      if (normalize && std::fabs(byte - d) > 0.5) {
+        detail::write_pixel(ofs, {255, 0, 0});  // blue
+      } else {
+        detail::write_pixel(ofs, {byte, byte, byte});
+      }
     }
 
-    ofs << "BM";
-    struct {
-      uint32_t file_size;
-      uint32_t reserved = 0;
-      uint32_t off_bits = 54;
-    } file_header;
-    uint32_t pad_size = (4 - ((3 * img_nb_cols) % 4)) % 4;
-    file_header.file_size =
-        54 + 3 * (image_size + nb_repeat * img_nb_rows * pad_size);
-    ofs.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+    if (++act_byte % img_nb_cols == 0) {
+      ofs.write(pad, pad_size);
+    }
+  });
 
-    struct {
-      uint32_t size = 40;
-      uint32_t w;
-      uint32_t h;
-      uint16_t planes = 0;
-      uint16_t bit_count = 24;  // 24 to skip the color table
-      uint32_t compression = 0;
-      uint32_t size_image = 0;
-      uint32_t x_pels_per_meter = 0;
-      uint32_t y_pels_per_meter = 0;
-      uint32_t clr_used = 0;
-      uint32_t clr_important = 0;
-    } file_info;
-    file_info.w = static_cast<uint32_t>(img_nb_cols);
-    file_info.h = static_cast<uint32_t>(img_nb_rows * nb_repeat);
-    ofs.write(reinterpret_cast<const char*>(&file_info), sizeof(file_info));
-
-    char pad[]{0, 0, 0};
-    unsigned char byte;
-    unsigned act_byte = 0;
-
-    for_each_pixel(get_data_if_norm, [&](T d) {
-      if (std::isnan(d)) {
-        detail::write_pixel(ofs, {0, 0, 255});  // red
-      } else if (std::isinf(d)) {
-        detail::write_pixel(ofs, {0, 255, 0});  // green
-      } else {
-        byte = static_cast<unsigned char>(
-            std::min(std::max(T(std::round(d)), T(0)), T(255)));
-        if (normalize && std::fabs(byte - d) > 0.5) {
-          detail::write_pixel(ofs, {255, 0, 0});  // blue
-        } else {
-          detail::write_pixel(ofs, {byte, byte, byte});
-        }
-      }
-
-      if (++act_byte % img_nb_cols == 0) {
-        ofs.write(pad, pad_size);
-      }
-    });
-
-    ofs.close();
-  }
+  ofs.close();
 
   assert(nb_nan == 0);
   assert(nb_inf == 0);
@@ -242,10 +239,12 @@ inline void write_bmp_grayscale(std::string filename, vector_t<T>& data,
                                 T min = 0, T max = 0, unsigned from_r = 0,
                                 unsigned from_c = 0, unsigned to_r = 0,
                                 unsigned to_c = 0) {
-  write_bmp_grayscale<T>(filename,
-                         data.template get_access<access::mode::read>(), 1,
-                         data.data_range[0], 1, normalize, abs, min, max,
-                         from_r, from_c, to_r, to_c);
+  std::vector<T> host_data(data.get_kernel_size());
+  auto event = sycl_copy_device_to_host(get_eigen_device().sycl_queue(), data,
+                                        host_data.data());
+  event.wait_and_throw();
+  write_bmp_grayscale<T>(filename, host_data.data(), 1, data.data_range[0], 1,
+                         normalize, abs, min, max, from_r, from_c, to_r, to_c);
 }
 
 /**
@@ -264,8 +263,11 @@ inline void write_bmp_grayscale_ker_rng(std::string filename, vector_t<T>& data,
                                         unsigned from_r = 0,
                                         unsigned from_c = 0, unsigned to_r = 0,
                                         unsigned to_c = 0) {
-  write_bmp_grayscale<T>(filename,
-                         data.template get_access<access::mode::read>(), 1,
+  std::vector<T> host_data(data.get_kernel_size());
+  auto event = sycl_copy_device_to_host(get_eigen_device().sycl_queue(), data,
+                                        host_data.data());
+  event.wait_and_throw();
+  write_bmp_grayscale<T>(filename, host_data.data(), 1,
                          data.get_kernel_range()[0], 1, normalize, abs, min,
                          max, from_r, from_c, to_r, to_c);
 }
@@ -284,11 +286,13 @@ inline void write_bmp_grayscale(std::string filename, matrix_t<T>& data,
                                 T min = 0, T max = 0, unsigned from_r = 0,
                                 unsigned from_c = 0, unsigned to_r = 0,
                                 unsigned to_c = 0) {
-  write_bmp_grayscale<T>(filename,
-                         data.template get_access<access::mode::read>(),
-                         access_ker_dim(data, 1), access_data_dim(data, 0),
-                         access_data_dim(data, 1), normalize, abs, min, max,
-                         from_r, from_c, to_r, to_c);
+  std::vector<T> host_data(data.get_kernel_size());
+  auto event = sycl_copy_device_to_host(get_eigen_device().sycl_queue(), data,
+                                        host_data.data());
+  event.wait_and_throw();
+  write_bmp_grayscale<T>(filename, host_data.data(), access_ker_dim(data, 1),
+                         access_data_dim(data, 0), access_data_dim(data, 1),
+                         normalize, abs, min, max, from_r, from_c, to_r, to_c);
 }
 
 /**
@@ -306,10 +310,13 @@ inline void write_bmp_grayscale_ker_rng(std::string filename, matrix_t<T>& data,
                                         unsigned from_r = 0,
                                         unsigned from_c = 0, unsigned to_r = 0,
                                         unsigned to_c = 0) {
-  write_bmp_grayscale<T>(
-      filename, data.template get_access<access::mode::read>(),
-      access_ker_dim(data, 1), access_ker_dim(data, 0), access_ker_dim(data, 1),
-      normalize, abs, min, max, from_r, from_c, to_r, to_c);
+  std::vector<T> host_data(data.get_kernel_size());
+  auto event = sycl_copy_device_to_host(get_eigen_device().sycl_queue(), data,
+                                        host_data.data());
+  event.wait_and_throw();
+  write_bmp_grayscale<T>(filename, host_data.data(), access_ker_dim(data, 1),
+                         access_ker_dim(data, 0), access_ker_dim(data, 1),
+                         normalize, abs, min, max, from_r, from_c, to_r, to_c);
 }
 
 /**

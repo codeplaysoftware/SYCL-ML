@@ -85,16 +85,15 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
                             .square()
                             .sum()
                             .sqrt();
-    act_norm = norm_buf.read_to_host(0);
-
     host_mat_jj = mat.read_to_host(jj_offset);
     // At each iteration the sign can be chosen to be different.
     // Choosing it to be -sign(mat(j,j)) maximizes the value of u1 but is more
     // likely to cause division by zero
     // act_sign = -cl::sycl::sign(host_mat_jj);
-    act_u1 = host_mat_jj - ACT_SIGN * act_norm;
-    act_tau = -ACT_SIGN * act_u1 / act_norm;
-    mat.write_from_host(jj_offset, ACT_SIGN * act_norm);
+    act_norm = ACT_SIGN * norm_buf.read_to_host(0);
+    act_u1 = host_mat_jj - act_norm;
+    act_tau = -act_u1 / act_norm;
+    mat.write_from_host(jj_offset, act_norm);
   };
 
   auto w_rng = w.kernel_range;
@@ -105,7 +104,7 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
     compute_acts(j);
 
     if (std::abs(act_u1) < eps) {
-      // Note: matrix Q would be wrong if this is reached
+      // Note: matrix Q would be inacurate if this is reached
       continue;
     }
 
@@ -133,7 +132,7 @@ void qr(queue& q, matrix_t<T>& mat, vector_t<T>& w, vector_t<T>& vec_buf,
         }
       });
     });
-    w.write_from_host(0, 1);
+    w.write_from_host(0, T(1));
 
     // Compute vec_buf
     slice_extents_w[0] = nb_rows_ker;

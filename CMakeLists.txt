@@ -24,7 +24,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 # Configuration options controlling automatic downloading of dependencies.
 option(SYCLML_DOWNLOAD_EIGEN "Download Eigen headers" ON)
-option(SYCLML_DOWNLOAD_SYCL_PARALLEL_STL "Download SyclParallelSTL headers" ON)
 option(SYCLML_DOWNLOAD_MISSING_DEPS
   "Download any dependencies which cannot be found" ON)
 
@@ -84,7 +83,6 @@ if(MSVC)
 endif()
 
 include(HandleEigen)
-include(HandleSyclParallelSTL)
 
 # Include SYCL-ML
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -95,7 +93,6 @@ target_include_directories(sycl_ml INTERFACE
 target_link_libraries(sycl_ml INTERFACE
   ComputeCpp::ComputeCpp
   Eigen
-  SyclParallelSTL
 )
 
 function(add_sycl_ml_executable SOURCE)
@@ -111,9 +108,8 @@ function(add_sycl_ml_executable SOURCE)
   target_link_libraries(${TARGET_NAME} sycl_ml)
   set_property(TARGET ${TARGET_NAME} PROPERTY COMPUTECPP_INCLUDE_AFTER 1)
   # Workaround INTERFACE_SYSTEM_INCLUDE_DIRECTORIES not being propagated
-  # Add Eigen and SyclParallelSTL as system includes
+  # Add Eigen as system include
   target_include_directories(${TARGET_NAME} SYSTEM PRIVATE $<TARGET_PROPERTY:Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
-  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE $<TARGET_PROPERTY:SyclParallelSTL,INTERFACE_INCLUDE_DIRECTORIES>)
   add_sycl_to_target(TARGET ${TARGET_NAME} SOURCES ${SOURCE})
 endfunction()
 

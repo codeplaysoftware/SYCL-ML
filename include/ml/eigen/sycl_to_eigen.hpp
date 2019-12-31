@@ -40,6 +40,11 @@ eig_dsize_t<OUT_DIM> range_to_dsize(const range<IN_DIM>& r) {
   return dim;
 }
 
+template <>
+eig_dsize_t<0> range_to_dsize<1, 0>(const range<1>&) {
+  return {};
+}
+
 }  // namespace detail
 
 /**
@@ -139,7 +144,7 @@ template <int IN_DIM, int OUT_DIM = IN_DIM,
           Eigen::StorageOptions DataLayout = Eigen::RowMajor, int R_DIM,
           class T>
 inline auto sycl_to_eigen(buffer_t<T, IN_DIM>& b, const range<R_DIM>& r) {
-  static_assert(R_DIM >= IN_DIM && R_DIM <= OUT_DIM, "");
+  static_assert(R_DIM >= IN_DIM && (R_DIM <= OUT_DIM || (R_DIM == 1 && OUT_DIM == 0)), "");
   assert_less_or_eq(r.size(), b.get_kernel_size());
   return sycl_to_eigen_t<T, IN_DIM, OUT_DIM, DataLayout>(
       b, detail::range_to_dsize<R_DIM, OUT_DIM>(r));

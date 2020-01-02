@@ -61,92 +61,56 @@ event compute_obj_values(queue& q, SYCLIndexT i, T g_max, T eps,
   });
 }
 
-class ml_smo_find_extremum_idx;
+/**
+ * @brief Return the argmax of the data validating cond.
+ *
+ * @tparam T
+ * @param q (unused)
+ * @param[in] cond whether to take into account the ith element
+ * @param[in] data
+ * @param[out] extremum_idx
+ * @return true if an extremum could be found i.e. cond has at least one
+ * true which does not correspond to a -inf
+ */
+template <class T, class EigenScalar>
+bool argmax_cond(queue&, vector_t<T>& cond, vector_t<T>& data,
+                 EigenScalar& eig_scalar, SYCLIndexT& argmax) {
+  T extremum = -std::numeric_limits<T>::infinity();
+  auto eig_cond = sycl_to_eigen(cond);
+  auto eig_data = sycl_to_eigen(data);
+  auto eig_extremum = eig_data.tensor().constant(extremum);
+  auto extremum_cond =
+      eig_cond.tensor().select(eig_data.tensor(), eig_extremum);
+  eig_scalar.device() = extremum_cond.argmax().template cast<SYCLIndexT>();
+  get_eigen_device().memcpyDeviceToHost(&argmax, eig_scalar.ptr(),
+                                        sizeof(SYCLIndexT));
+  return data.read_to_host(argmax) != extremum;
+}
 
 /**
- * @brief Return the index of the min or max element of gradient validating
- * cond.
+ * @brief Return the argmin of the data validating cond.
  *
- * If multiple elements satisfying the condition are equal to the max or the
- * min, it must return the last element.
- *
- * @tparam Compare should be std::less (resp. std::greater) to look for a
- * minimum (resp. maximum) element
  * @tparam T
- * @tparam ContainerT Container of type uint32_t, must provide size and data
- * methods and [] operator
- * @param q
+ * @param q (unused)
  * @param[in] cond whether to take into account the ith element
- * @param[in] gradient values to minimize or maximize
- * @param[in, out] in_indices the first iteration indices from 0 to m otherwise
- * result from previous iteration
- * @param[out] out_indices resulting indices
- * @param search_rng
- * @param host_buffer Buffer used to perform the end of the search. It's size is
- * used as a threshold below which the search is done on the host
- * @param comp
+ * @param[in] data
  * @param[out] extremum_idx
- * @return true if an extremum could be found (i.e. if cond has at least one
- * true)
+ * @return true if an extremum could be found i.e. cond has at least one
+ * true which does not correspond to a +inf
  */
-template <class Compare, class T, class ContainerT>
-bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
-                       vector_t<uint32_t>& in_indices,
-                       vector_t<uint32_t>& out_indices,
-                       const nd_range<1>& search_rng, ContainerT host_buffer,
-                       Compare comp, SYCLIndexT& extremum_idx) {
-  auto search_size = search_rng.get_global_linear_range();
-  // Search on the host starting from the end
-  if (2 * search_size <= host_buffer.size()) {
-    auto copy_event = sycl_copy_device_to_host(
-        q, in_indices, host_buffer.data(), 0, 2 * search_size);
-    copy_event.wait_and_throw();
-    long k = 2 * search_size - 1;
-    extremum_idx = -1;
-    T extremum_gradient;
-    T grad_i;
-    // Find last extremum gradient's index holding the condition
-    while (k >= 0) {
-      auto i = host_buffer[k];
-      if (cond.read_to_host(i)) {
-        grad_i = gradient.read_to_host(i);
-        if (comp(grad_i, extremum_gradient)) {
-          extremum_idx = i;
-          extremum_gradient = grad_i;
-          break;
-        }
-      }
-      --k;
-    }
-    return k >= 0 && cond.read_to_host(extremum_idx);
-  }
-
-  q.submit([&cond, &gradient, &in_indices, &out_indices, comp,
-            search_rng](handler& cgh) {
-    auto cond_acc = cond.template get_access_1d<access::mode::read>(cgh);
-    auto g_acc = gradient.template get_access_1d<access::mode::read>(cgh);
-    auto in_indices_acc =
-        in_indices.template get_access_1d<access::mode::read>(cgh);
-    auto out_indices_acc =
-        out_indices.template get_access_1d<access::mode::discard_write>(cgh);
-    cgh.parallel_for<NameGen<0, ml_smo_find_extremum_idx, T, Compare>>(
-        search_rng, [=](nd_item<1> item) {
-          auto idx = item.get_global_id(0);
-          auto i = in_indices_acc(2 * idx);
-          auto j = in_indices_acc(2 * idx + 1);
-          // If both conditions are true, use comp to select which index to
-          // return else if one is true, return the corresponding index if both
-          // are false return 0 (this index will be ignored at some point)
-          out_indices_acc(idx) = (cond_acc(i) && cond_acc(j))
-                                     ? (comp(g_acc(i), g_acc(j)) ? i : j)
-                                     : (cond_acc(i) * i + cond_acc(j) * j);
-        });
-  });
-
-  sycl_copy(q, out_indices, in_indices, 0, 0, search_size);
-  return find_extremum_idx(q, cond, gradient, in_indices, out_indices,
-                           get_optimal_nd_range(search_size / 2), host_buffer,
-                           comp, extremum_idx);
+template <class T, class EigenScalar>
+bool argmin_cond(queue&, vector_t<T>& cond, vector_t<T>& data,
+                 EigenScalar& eig_scalar, SYCLIndexT& argmin) {
+  T extremum = std::numeric_limits<T>::infinity();
+  auto eig_cond = sycl_to_eigen(cond);
+  auto eig_data = sycl_to_eigen(data);
+  auto eig_extremum = eig_data.tensor().constant(extremum);
+  auto extremum_cond =
+      eig_cond.tensor().select(eig_data.tensor(), eig_extremum);
+  eig_scalar.device() = extremum_cond.argmin().template cast<SYCLIndexT>();
+  get_eigen_device().memcpyDeviceToHost(&argmin, eig_scalar.ptr(),
+                                        sizeof(SYCLIndexT));
+  return data.read_to_host(argmin) != extremum;
 }
 
 /**
@@ -155,6 +119,7 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
  * @see smo
  * @tparam KerFun kernel function
  * @tparam T
+ * @tparam EigenScalar device buffer used for argmax_cond and argmin_cond
  * @param q
  * @param[in] y
  * @param[in] gradient
@@ -162,42 +127,28 @@ bool find_extremum_idx(queue& q, vector_t<T>& cond, vector_t<T>& gradient,
  * @param[in] vec_cond_less
  * @param[in] tol
  * @param[in] eps
- * @param[in] start_search_indices
- * @param[in] start_search_rng
- * @param[in] host_buffer
  * @param[in, out] kernel_cache
  * @param[out] i
  * @param[out] j
  * @param[out] diff
  * @return whether a pair was successfully selected
  */
-template <class KerFun, class T, class ContainerT>
+template <class KerFun, class T, class EigenScalar>
 bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
                 vector_t<T>& vec_cond_greater, vector_t<T>& vec_cond_less,
-                T tol, T eps, vector_t<uint32_t>& start_search_indices,
-                const nd_range<1>& start_search_rng, ContainerT host_buffer,
+                T tol, T eps, EigenScalar& eig_scalar,
                 kernel_cache<KerFun, T>& kernel_cache, SYCLIndexT& i,
                 SYCLIndexT& j, T& diff) {
-  vector_t<uint32_t> tmp_in_search_indices(start_search_indices.data_range,
-                                           start_search_indices.kernel_range);
-  vector_t<uint32_t> buff_search_indices(start_search_rng);
-
-  // Compute max(gradient) and its index i
-  sycl_copy(q, start_search_indices, tmp_in_search_indices);
-  if (!find_extremum_idx(q, vec_cond_greater, gradient, tmp_in_search_indices,
-                         buff_search_indices, start_search_rng, host_buffer,
-                         std::greater<T>(), i)) {
+  // Compute i=argmax(gradient) validating vec_cond_greater
+  if (!argmax_cond(q, vec_cond_greater, gradient, eig_scalar, i)) {
     return false;
   }
   auto ker_i_t = kernel_cache.get_ker_row(i);
   T g_max = gradient.read_to_host(i);
 
-  // Compute min(gradient)
-  sycl_copy(q, start_search_indices, tmp_in_search_indices);
+  // Compute min(gradient) validating vec_cond_less
   SYCLIndexT g_min_idx;
-  if (!find_extremum_idx(q, vec_cond_less, gradient, tmp_in_search_indices,
-                         buff_search_indices, start_search_rng, host_buffer,
-                         std::less<T>(), g_min_idx)) {
+  if (!argmin_cond(q, vec_cond_less, gradient, eig_scalar, g_min_idx)) {
     return false;
   }
   T g_min = gradient.read_to_host(g_min_idx);
@@ -207,15 +158,12 @@ bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
     return false;
   }
 
-  // Compute the index j of min(obj_values)
+  // Compute j=argmin(obj_values) validating vec_cond_less
   vector_t<T> obj_values(y.data_range, y.kernel_range);
   compute_obj_values(q, i, g_max, eps, gradient, kernel_cache.get_ker_diag(),
                      ker_i_t, obj_values);
 
-  sycl_copy(q, start_search_indices, tmp_in_search_indices);
-  return find_extremum_idx(q, vec_cond_less, obj_values, tmp_in_search_indices,
-                           buff_search_indices, start_search_rng, host_buffer,
-                           std::less<T>(), j);
+  return argmin_cond(q, vec_cond_less, obj_values, eig_scalar, j);
 }
 
 class ml_smo_update_gradient;
@@ -345,11 +293,10 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
     max_nb_iter = std::max(10000000LU, m > INT_MAX / 100 ? INT_MAX : 100 * m);
   }
 
+  vector_t<SYCLIndexT> device_scalar(range<1>(1));
+  auto eig_scalar = sycl_to_eigen<1, 0>(device_scalar);
   vector_t<T> alphas(y.data_range, y.kernel_range);
   vector_t<T> gradient(y.data_range, y.kernel_range);
-  vector_t<uint32_t> start_search_indices(y.data_range, y.kernel_range);
-  auto start_search_rng = get_optimal_nd_range(
-      start_search_indices.kernel_range.get_global_linear_range() >> 1);
 
   // cond stores boolean only but type is T to avoid multiple cast at runtime
   vector_t<T> vec_cond_greater(y.data_range, y.kernel_range);
@@ -368,19 +315,15 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
 
   sycl_memset(q, alphas);
   sycl_copy(q, y, gradient);
-  sycl_init_func_i(q, start_search_indices, start_search_indices.get_nd_range(),
-                   functors::identity<T>());
 
   SYCLIndexT i;
   SYCLIndexT j;
   T diff;
   SYCLIndexT nb_iter = 0;
   T eps = 1E-8;
-  std::array<uint32_t, 64> find_host_buffer;
   while (nb_iter < max_nb_iter) {
     if (!detail::select_wss(q, y, gradient, vec_cond_greater, vec_cond_less,
-                            tol, eps, start_search_indices, start_search_rng,
-                            find_host_buffer, kernel_cache, i, j, diff)) {
+                            tol, eps, eig_scalar, kernel_cache, i, j, diff)) {
       break;
     }
     // std::cout << "#" << nb_iter << " i=" << i << " j=" << j << " diff=" <<

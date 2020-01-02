@@ -16,7 +16,9 @@
 #ifndef TEST_SRC_UTILS_ASSERT_UTILS_HPP
 #define TEST_SRC_UTILS_ASSERT_UTILS_HPP
 
+#include <array>
 #include <cmath>
+#include <iostream>
 
 #undef NDEBUG
 #include <cassert>

@@ -19,34 +19,32 @@
 #include "utils/utils.hpp"
 
 template <class T>
-void test_find_extremum_idx() {
+void test_argmin_cond() {
   constexpr auto NB_ELT = 128LU;
   constexpr auto EXPECTED_MIN_IDX = 13LU;
+  constexpr auto TRUE_MIN_IDX = 15LU;
   std::array<T, NB_ELT> host_data;
   fill_random(host_data, 0, 100);
   host_data[EXPECTED_MIN_IDX] = -1;
+  host_data[TRUE_MIN_IDX] = -2;
 
   unsigned long min_idx;
   {
     cl::sycl::queue& q = create_queue();
     ml::vector_t<T> sycl_data(host_data.data(), cl::sycl::range<1>(NB_ELT));
     ml::vector_t<T> sycl_cond((cl::sycl::range<1>(NB_ELT)));
-    ml::vector_t<uint32_t> start_search_indices(sycl_data.data_range,
-                                                sycl_data.kernel_range);
-    auto start_search_rng = ml::get_optimal_nd_range(
-        start_search_indices.kernel_range.get_global_linear_range() / 2);
-    ml::vector_t<uint32_t> buff_search_indices(start_search_rng);
 
     ml::sycl_memset(q, sycl_cond, T(true));
-    ml::sycl_init_func_i(q, start_search_indices,
-                         start_search_indices.kernel_range,
-                         ml::functors::identity<T>());
+    // Ignore this index so it should not be returned
+    sycl_cond.write_from_host(TRUE_MIN_IDX, false);
 
-    std::array<uint32_t, 64> find_host_buffer;
-    bool found = ml::detail::find_extremum_idx(
-        q, sycl_cond, sycl_data, start_search_indices, buff_search_indices,
-        start_search_rng, find_host_buffer, std::less<T>(), min_idx);
-    assert(found);
+    {
+      ml::vector_t<ml::SYCLIndexT> device_scalar(ml::range<1>(1));
+      auto eig_scalar = ml::sycl_to_eigen<1, 0>(device_scalar);
+      bool found =
+          ml::detail::argmin_cond(q, sycl_cond, sycl_data, eig_scalar, min_idx);
+      assert(found);
+    }
 
     sycl_data.set_final_data(nullptr);
     clear_eigen_device();
@@ -57,9 +55,9 @@ void test_find_extremum_idx() {
 
 int main() {
   try {
-    test_find_extremum_idx<float>();
+    test_argmin_cond<float>();
 #ifdef SYCLML_TEST_DOUBLE
-    test_find_extremum_idx<double>();
+    test_argmin_cond<double>();
 #endif
   } catch (cl::sycl::exception e) {
     std::cerr << e.what();

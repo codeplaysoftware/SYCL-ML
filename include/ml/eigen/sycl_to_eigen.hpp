@@ -99,6 +99,8 @@ class sycl_to_eigen_t {
    */
   inline auto device() { return tensor().device(get_eigen_device()); }
 
+  inline const T* ptr() const { return _host_ptr; }
+
   // No copy, only move
   sycl_to_eigen_t(const Self&) = delete;
   sycl_to_eigen_t(Self&&) = default;
@@ -144,7 +146,9 @@ template <int IN_DIM, int OUT_DIM = IN_DIM,
           Eigen::StorageOptions DataLayout = Eigen::RowMajor, int R_DIM,
           class T>
 inline auto sycl_to_eigen(buffer_t<T, IN_DIM>& b, const range<R_DIM>& r) {
-  static_assert(R_DIM >= IN_DIM && (R_DIM <= OUT_DIM || (R_DIM == 1 && OUT_DIM == 0)), "");
+  static_assert(
+      R_DIM >= IN_DIM && (R_DIM <= OUT_DIM || (R_DIM == 1 && OUT_DIM == 0)),
+      "");
   assert_less_or_eq(r.size(), b.get_kernel_size());
   return sycl_to_eigen_t<T, IN_DIM, OUT_DIM, DataLayout>(
       b, detail::range_to_dsize<R_DIM, OUT_DIM>(r));

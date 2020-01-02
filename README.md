@@ -2,27 +2,27 @@
 
 ## What is it?
 SYCL-ML is a framework providing simple classical machine learning algorithms using SYCL.
-It is meant to be accelerated on any OpenCL device supporting SPIR or SPIRV (experimental).
+It is meant to be accelerated on any OpenCL device supporting SPIR or SPIR-V.
 The following links give more details on what SYCL is:
 - https://www.khronos.org/sycl
 - https://developer.codeplay.com/computecppce/latest/sycl-guide-introduction
 
 ## What can it do?
-Some linear algebra operations had to be written from scratch such as:
+Some linear algebra operations had to be implemented such as:
 - **Matrix inversion**
 - **SVD decomposition**
 - **QR decomposition**
 
-In terms of more machine learning related operations it includes:
+In terms of machine learning related algorithms it includes:
 - **Principal Component Analysis**: used to reduce the dimensionality of a problem.
 - **Linear Classifier** (see naive Bayes classifier): classify assuming all variables are equally as important.
 - **Gaussian Classifier**: classify using the Gaussian distribution.
 - **Gaussian Mixture Model**: based on the EM algorithm, uses multiple Gaussian distribution for each labels.
-- **Support Vector Machine**: C-SVM with any possible kernel function.
+- **Support Vector Machine**: C-SVM with any kernel function.
 
-SYCL-ML is a header only library which make it easy to integrate.
+SYCL-ML is a header only library which makes it easy to integrate.
 
-More details on what the project implements and how it works can be found on [our website](https://www.codeplay.com/portal/12-21-17-alternative-machine-learning-algorithms-using-sycl-and-opencl). Make sure to use the blogpost branch if you want to observe the same results as shown there.
+More details on what the project implements and how it works can be found on our [website](https://www.codeplay.com/portal/12-21-17-alternative-machine-learning-algorithms-using-sycl-and-opencl).
 
 ## TODO list
 - Optimize **SVD** decomposition for faster PCA. The algorithm probably needs to be changed to compute eigenpairs differently.
@@ -33,38 +33,24 @@ More details on what the project implements and how it works can be found on [ou
 
 ## Prerequisites
 SYCL-ML has been tested with:
-- Ubuntu 16.04.3, kernel 4.13.0-26, amdgpu pro driver 17.40  OR  Ubuntu 14.04.5, kernel 3.19.0-79, fglrx driver 2:15.302
+- Ubuntu 16.04, amdgpu pro driver 17.40
 - CMake 3.0
 - g++ 5.4
-- ComputeCpp 1.0.1
+- ComputeCpp 1.2.0
 
 ComputeCpp can be downloaded from the [CodePlay](https://www.codeplay.com/products/computesuite/computecpp) website.
-Once extracted, ComputeCpp path should be set as an environment variable to `COMPUTECPP_PACKAGE_ROOT_DIR` (usually */usr/local/computecpp*).
-Alternatively, it can be given as an argument to cmake with `COMPUTECPP_PACKAGE_ROOT_DIR`.
-
-SYCL-ML depends on [SYCLParallelSTL](https://github.com/KhronosGroup/SyclParallelSTL).
-SYCLParallelSTL's path must be set to `SYCL_PARALLEL_STL_ROOT` either as an environment variable or as an argument to cmake.
-```bash
-git clone https://github.com/KhronosGroup/SyclParallelSTL.git
-```
-
-The last requirement is the Eigen-Optimised-Tensor-Vector-Contraction branch of [Eigen](https://bitbucket.org/codeplaysoftware/eigen).
-Eigen's path must be set to `EIGEN_INCLUDE_DIRS` either as an environment variable or as an argument to cmake.
-The version of Eigen needed is slightly different than the upstream.
-The changes are packed in the `eigen.patch` file which the next section shows how to apply.
-```bash
-hg clone https://bitbucket.org/codeplaysoftware/eigen
-```
+Once extracted, ComputeCpp path should be set as an environment variable to `COMPUTECPP_DIR` (usually `/usr/local/computecpp`).
+Alternatively, it can be given as an argument to cmake with `-DComputeCpp_DIR=path/to/computecpp`.
 
 ## Building
-The eigen patch file must be applied first then cmake and make:
+Build all the targets with:
 ```bash
-patch -p1 -d <Eigen_root> < eigen.patch
-mkdir build && cd build
-cmake -DSYCL_PARALLEL_STL_ROOT=<SYCLParallelSTL_root> -DEIGEN_INCLUDE_DIRS=<Eigen_root> ..
+mkdir build
+cd build
+cmake ..
 make
 ```
-Note that on Unix CMake will take care of downloading the MNIST dataset using *wget* and *gunzip*.
+Note that on Unix CMake will take care of downloading the MNIST dataset using `wget` and `gunzip`.
 
 It is recommended to run the tests before running the examples:
 ```bash
@@ -72,7 +58,7 @@ cd build/tests
 ctest --output-on-failure
 ```
 
-The documentation can be built with *doxygen*. It requires *dot* from the *graphviz* package. Simply run:
+The documentation can be built with `doxygen`. It requires `dot` from the `graphviz` package. Simply run:
 ```bash
 doxygen
 ```

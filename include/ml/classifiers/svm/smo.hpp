@@ -121,7 +121,7 @@ bool argmin_cond(queue&, vector_t<T>& cond, vector_t<T>& data,
  * @tparam T
  * @tparam EigenScalar device buffer used for argmax_cond and argmin_cond
  * @param q
- * @param[in] y
+ * @param obj_values temporary buffer the size of the labels
  * @param[in] gradient
  * @param[in] vec_cond_greater
  * @param[in] vec_cond_less
@@ -134,7 +134,7 @@ bool argmin_cond(queue&, vector_t<T>& cond, vector_t<T>& data,
  * @return whether a pair was successfully selected
  */
 template <class KerFun, class T, class EigenScalar>
-bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
+bool select_wss(queue& q, vector_t<T>& obj_values, vector_t<T>& gradient,
                 vector_t<T>& vec_cond_greater, vector_t<T>& vec_cond_less,
                 T tol, T eps, EigenScalar& eig_scalar,
                 kernel_cache<KerFun, T>& kernel_cache, SYCLIndexT& i,
@@ -159,7 +159,6 @@ bool select_wss(queue& q, vector_t<T>& y, vector_t<T>& gradient,
   }
 
   // Compute j=argmin(obj_values) validating vec_cond_less
-  vector_t<T> obj_values(y.data_range, y.kernel_range);
   compute_obj_values(q, i, g_max, eps, gradient, kernel_cache.get_ker_diag(),
                      ker_i_t, obj_values);
 
@@ -287,20 +286,25 @@ template <class KernelCacheT, class T>
 smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
                T alpha_eps, SYCLIndexT max_nb_iter, KernelCacheT kernel_cache) {
   auto m = access_ker_dim(x, 0);
-  assert_eq(y.kernel_range.get_global_linear_range(), to_pow2(m));
+  assert_eq(y.get_kernel_size(), to_pow2(m));
+
+  std::vector<T> host_alphas(m);
+  std::vector<T> host_y(m);
+  auto copy_event = sycl_copy_device_to_host(q, y, host_y.data(), 0, m);
 
   if (max_nb_iter == 0) {
     max_nb_iter = std::max(10000000LU, m > INT_MAX / 100 ? INT_MAX : 100 * m);
   }
 
-  vector_t<SYCLIndexT> device_scalar(range<1>(1));
-  auto eig_scalar = sycl_to_eigen<1, 0>(device_scalar);
-  vector_t<T> alphas(y.data_range, y.kernel_range);
+  vector_t<SYCLIndexT> device_scalar_index(range<1>(1));
+  auto eig_scalar_index = sycl_to_eigen<1, 0>(device_scalar_index);
   vector_t<T> gradient(y.data_range, y.kernel_range);
 
-  // cond stores boolean only but type is T to avoid multiple cast at runtime
+  // vec_cond_greater and vec_cond_less are boolean vectors with type T for
+  // convenience
   vector_t<T> vec_cond_greater(y.data_range, y.kernel_range);
   vector_t<T> vec_cond_less(y.data_range, y.kernel_range);
+  vector_t<T> obj_values(y.data_range, y.kernel_range);
 
   auto cond_greater = [c, alpha_eps](T y, T a) {
     return T((y > 0 && a < c) || (y < 0 && a > alpha_eps));
@@ -312,8 +316,6 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
   // Compute initial cond
   vec_unary_op(q, y, vec_cond_greater, ml::functors::positive<T>());
   vec_unary_op(q, y, vec_cond_less, ml::functors::negative<T>());
-
-  sycl_memset(q, alphas);
   sycl_copy(q, y, gradient);
 
   SYCLIndexT i;
@@ -321,21 +323,24 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
   T diff;
   SYCLIndexT nb_iter = 0;
   T eps = 1E-8;
+  copy_event.wait_and_throw();
   while (nb_iter < max_nb_iter) {
-    if (!detail::select_wss(q, y, gradient, vec_cond_greater, vec_cond_less,
-                            tol, eps, eig_scalar, kernel_cache, i, j, diff)) {
+    if (!detail::select_wss(q, obj_values, gradient, vec_cond_greater,
+                            vec_cond_less, tol, eps, eig_scalar_index,
+                            kernel_cache, i, j, diff)) {
       break;
     }
-    // std::cout << "#" << nb_iter << " i=" << i << " j=" << j << " diff=" <<
-    // diff << std::endl;
+    /*
+    std::cout << "#" << nb_iter << " i=" << i << " j=" << j
+              << " diff=" << diff << std::endl;
+    */
     auto ker_i_t = kernel_cache.get_ker_row(i);
     auto ker_j_t = kernel_cache.get_ker_row(j);
 
-    // Read values from device for i and j
-    T ai = alphas.read_to_host(i);
-    T aj = alphas.read_to_host(j);
-    T yi = y.read_to_host(i);
-    T yj = y.read_to_host(j);
+    T& ai = host_alphas[i];
+    T& aj = host_alphas[j];
+    T yi = host_y[i];
+    T yj = host_y[j];
 
     T a = std::max(kernel_cache.get_ker_diag(i) + kernel_cache.get_ker_diag(j) -
                        2 * ker_i_t.read_to_host(j),
@@ -353,16 +358,17 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
     aj = yj * (s - yi * ai);
     aj = clamp(aj, T(0), c);
     ai = yi * (s - yj * aj);
-    alphas.write_from_host(i, ai);
-    alphas.write_from_host(j, aj);
 
     // Update gradient
     T delta_ai = yi * (ai - old_ai);
     T delta_aj = yj * (aj - old_aj);
 
     // Shouldn't happen in theory but can because of precision issue
-    assert(std::abs(delta_ai) >= eps);
-    assert(std::abs(delta_aj) >= eps);
+    if (std::abs(delta_ai) < eps || std::abs(delta_aj) < eps) {
+      // Try again with a different working set
+      vec_cond_less.write_from_host(j, false);
+      continue;
+    }
 
     auto update_event = detail::update_gradient(q, delta_ai, delta_aj, ker_i_t,
                                                 ker_j_t, gradient);
@@ -381,31 +387,41 @@ smo_out<T> smo(queue& q, matrix_t<T>& x, vector_t<T>& y, T c, T tol,
   }
 
   // Compute host_sv_indices
-  std::vector<uint32_t> host_sv_indices;
-  {
-    auto host_alphas = alphas.template get_access<access::mode::read>();
-    for (unsigned k = 0; k < m; ++k) {
-      if (host_alphas[k] > alpha_eps) {
-        host_sv_indices.push_back(k);
-      }
+  std::vector<SYCLIndexT> host_sv_indices;
+  for (unsigned k = 0; k < m; ++k) {
+    if (host_alphas[k] > alpha_eps) {
+      host_sv_indices.push_back(k);
     }
   }
   auto nb_sv = host_sv_indices.size();
-  assert(nb_sv > 0);
+  if (nb_sv == 0) {
+    std::cerr << "Error: no support vectors could be found with the given "
+                 "parameters. Try lowering alpha_eps, increasing C or using a "
+                 "different kernel."
+              << std::endl;
+    assert(false);
+    return smo_out<T>();
+  }
+  vector_t<SYCLIndexT> sv_indices(host_sv_indices.data(), range<1>(nb_sv));
 
   // Compute rho
   T rho = 0;
-  for (auto sv_idx : host_sv_indices) {
-    rho += gradient.read_to_host(sv_idx);
+  {
+    auto host_gradient = gradient.template get_access<access::mode::read>();
+    for (auto sv_idx : host_sv_indices) {
+      rho += host_gradient[sv_idx];
+    }
+    rho /= nb_sv;
   }
-  rho /= nb_sv;
 
   // Copy the selected support vectors and y .* alphas
-  vector_t<uint32_t> sv_indices(host_sv_indices.data(), range<1>(nb_sv));
+  vector_t<T> alphas(y.data_range, y.kernel_range);
+  copy_event = sycl_copy_host_to_device(q, host_alphas.data(), alphas, 0, m);
   auto svs = split_by_index(q, x, sv_indices);
   vector_t<T> sv_alphas(sv_indices.data_range, sv_indices.kernel_range);
   detail::copy_alphas(q, alphas, y, sv_indices, sv_alphas);
 
+  copy_event.wait_and_throw();
   return smo_out<T>{svs, sv_alphas, rho, nb_iter};
 }
 

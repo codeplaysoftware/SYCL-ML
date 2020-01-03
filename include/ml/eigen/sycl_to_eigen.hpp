@@ -56,7 +56,7 @@ eig_dsize_t<0> range_to_dsize<1, 0>(const range<1>&) {
  * @todo Because of the way Eigen works if 2 \p sycl_to_eigen_t objects are
  * created with the same buffer and one is destroyed, the 2 Tensors become
  * invalid. The fix would require to either count the number of references for
- *       each buffer or to create a different pointer if one already exist.
+ * each buffer or to create a different pointer if one already exist.
  *
  * @tparam T
  * @tparam IN_DIM dimension of the SYCL buffer

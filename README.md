@@ -50,7 +50,8 @@ cd build
 cmake ..
 make
 ```
-Note that on Unix CMake will take care of downloading the MNIST dataset using `wget` and `gunzip`.
+CMake will take care of downloading the Eigen dependency and MNIST dataset.
+On Unix it will automatically extract the MNIST dataset using `gunzip`.
 
 It is recommended to run the tests before running the examples:
 ```bash

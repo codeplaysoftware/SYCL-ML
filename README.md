@@ -63,6 +63,9 @@ The documentation can be built with `doxygen`. It requires `dot` from the `graph
 doxygen
 ```
 
+## Known issues
+- Warnings about undefined function `abort` on the device will be generated during the compilation. They can be safely ignored for now.
+
 ## Contributing
 The project is under the Apache 2.0 license. Any contribution is welcome! Also feel free to raise an issue for any
 questions or suggestions.

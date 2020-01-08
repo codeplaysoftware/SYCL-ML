@@ -11,7 +11,7 @@ if(NOT Eigen_FOUND AND (SYCLML_DOWNLOAD_EIGEN OR SYCLML_DOWNLOAD_MISSING_DEPS))
   set(EIGEN_REPO "https://gitlab.com/libeigen/eigen" CACHE STRING
     "Eigen repository to use"
   )
-  set(EIGEN_GIT_TAG "00f3275" CACHE STRING
+  set(EIGEN_GIT_TAG "d0ae052" CACHE STRING
     "Git tag, branch or commit to use for the Eigen library"
   )
   set(EIGEN_SOURCE_DIR ${PROJECT_BINARY_DIR}/Eigen-src)
